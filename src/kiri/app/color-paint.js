@@ -16,7 +16,8 @@ import { colorSchemeRegistry } from './color/schemes.js';
 const MIN_RADIUS = 0.5;
 const MAX_RADIUS = 20;
 
-let painting = null;    // { tool, alert } while the brush is active
+let painting = null;    // { tool, erase, alert } while the brush is active
+let listeners = [];     // notified when painting starts/stops or changes
 let brush = 2;          // brush radius in mm
 let down = null;        // widget under the pointer when the stroke started
 
@@ -128,16 +129,43 @@ function dist(a, b) {
 function showHint() {
     api.hide.alert(painting.alert);
     painting.alert = api.show.alert(
-        `painting ${slotLabel(painting.tool)} · brush ${brush}mm · [ ] size · shift erases · esc stops`, 1000);
+        painting.erase ?
+            `erasing colour paint · brush ${brush}mm · [ ] size · esc stops` :
+            `painting ${slotLabel(painting.tool)} · brush ${brush}mm · [ ] size · shift erases · esc stops`, 1000);
 }
 
-export function paintStart(tool) {
-    if (painting) paintDone();
-    painting = { tool };
+function notify() {
+    listeners.forEach(fn => fn(painting ? { tool: painting.tool, erase: painting.erase, brush } : null));
+}
+
+export function onPaintChange(fn) {
+    listeners.push(fn);
+}
+
+export function setBrush(radius) {
+    brush = Math.min(MAX_RADIUS, Math.max(MIN_RADIUS, radius)).round(1);
+    if (painting) showHint();
+    notify();
+}
+
+export function getBrush() {
+    return brush;
+}
+
+export function paintStart(tool, opt = {}) {
+    if (painting) {
+        // switching slot or eraser while painting: keep the mouse hooks
+        painting.tool = tool;
+        painting.erase = !!opt.erase;
+        showHint();
+        notify();
+        return;
+    }
+    painting = { tool, erase: !!opt.erase };
     api.feature.hover = true;
     api.feature.on_mouse_down = (int, event) => {
         if (int) {
-            down = { widget: int.object.widget, erase: event?.shiftKey };
+            down = { widget: int.object.widget, erase: painting.erase || event?.shiftKey };
             addPaint(int.point, down.widget, down.erase);
         }
         return api.widgets.meshes();
@@ -154,6 +182,7 @@ export function paintStart(tool) {
         return api.widgets.meshes();
     };
     showHint();
+    notify();
 }
 
 export function paintDone() {
@@ -167,6 +196,7 @@ export function paintDone() {
     api.feature.on_mouse_up = undefined;
     api.conf.save();
     api.space.save();
+    notify();
 }
 
 export function paintClear() {
@@ -182,8 +212,7 @@ export function paintClear() {
 export function paintKey(evt) {
     if (!painting) return false;
     if (evt.key === '[' || evt.key === ']') {
-        brush = Math.min(MAX_RADIUS, Math.max(MIN_RADIUS, brush * (evt.key === ']' ? 1.25 : 0.8))).round(1);
-        showHint();
+        setBrush(brush * (evt.key === ']' ? 1.25 : 0.8));
         return true;
     }
     if (evt.key === 'Escape') {
@@ -304,4 +333,5 @@ export function initColorPaint() {
     });
 }
 
-export const colorPaint = { init: initColorPaint, start: paintStart, done: paintDone, clear: paintClear, refresh: refreshOverlays };
+export const colorPaint = { init: initColorPaint, start: paintStart, done: paintDone, clear: paintClear, refresh: refreshOverlays,
+    onChange: onPaintChange, setBrush, getBrush, isPainting };
