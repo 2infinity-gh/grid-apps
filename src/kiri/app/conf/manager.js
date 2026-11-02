@@ -10,6 +10,8 @@ import { local } from '../../../data/local.js';
 import { newWidget } from '../widget.js';
 import { utils } from '../../core/utils.js';
 import { version } from '../../../moto/license.js';
+import { slotLabel, slotColor, loadSlots, onSlots } from '../slots.js';
+import { avgc } from '../../core/utils.js';
 import { JSZip } from '../../../ext/jszip-esm.js';
 
 import { colorSchemeRegistry } from '../color/schemes.js';
@@ -326,7 +328,7 @@ function updateExtruderFields(device) {
         api.uc.setClass($('tool-nozzle'), 'hide', false);
         h.bind($('ft-nozzle'), device.extruders.map((d,i) => h.div([
             h.button({
-                _: `extruder ${i}`,
+                _: slotLabel(i),
                 onclick() {
                     api.selection.for_widgets(w => {
                         w.anno.extruder = i;
@@ -341,7 +343,7 @@ function updateExtruderFields(device) {
             }),
             h.div({
                 class: "splat",
-                style: `background-color: #${getColorScheme().widget.deselected[i].toString(16)}`
+                style: `background-color: #${(slotColor(i, false, avgc) ?? getColorScheme().widget.deselected[i]).toString(16).padStart(6, '0')}`
             })
         ])));
     } else {
@@ -812,6 +814,18 @@ const apiSet = {
         status: false
     }
 };
+
+// real filament colours from the printer: relabel the tool menu and recolour widgets
+onSlots(() => {
+    if (!settings?.device) return;
+    updateExtruderFields(settings.device);
+    const scheme = getColorScheme();
+    api.widgets.all().forEach(w => w.setColor(
+        api.selection.contains(w) ? scheme.widget.selected : scheme.widget.deselected,
+        undefined,
+        false));
+});
+loadSlots();
 
 // for backward compatibility
 apiSet.conf = apiSet;

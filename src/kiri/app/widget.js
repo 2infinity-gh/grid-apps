@@ -3,6 +3,7 @@
 import { Widget as WidgetCore } from '../core/widget.js';
 import { util } from '../../geo/base.js';
 import { avgc } from '../core/utils.js';
+import { slotColor, isSelectedScheme } from './slots.js';
 import { colorSchemeRegistry } from './color/schemes.js';
 import { VisualStateManager } from './state/visual.js';
 
@@ -123,7 +124,9 @@ class Widget extends WidgetCore {
             console.trace('legacy call with settings');
         }
         if (Array.isArray(color)) {
-            color = color[this.getExtruder() % color.length];
+            // show the real filament colour of the widget's slot when known
+            let ext = this.getExtruder();
+            color = slotColor(ext, isSelectedScheme(color), avgc) ?? color[ext % color.length];
         }
         if (save) {
             this.color = color;
