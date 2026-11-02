@@ -74,6 +74,7 @@ function resolve(json, batch, library) {
     }
     const merged = { ...parent, ...own };
     const name = String(json.name || json.filament_settings_id?.[0] || 'filament');
+    merged.type = merged.type || guessType(inherits, name);
     return { ...typeDefaults(merged.type), ...merged, name, raw: undefined };
 }
 
@@ -91,8 +92,23 @@ async function readPresets(files) {
             out.push(await file.text());
         }
     }
-    return out.map(text => { try { return JSON.parse(text) } catch { return null } })
-        .filter(j => j && (j.type === 'filament' || j.filament_type || j.nozzle_temperature));
+    return out;
+}
+
+// Orca user presets often carry only their overrides plus "inherits" and no
+// "type" (that lives in the system parent), so accept anything that is not
+// explicitly a machine/process preset and looks like a filament preset
+function isFilamentPreset(j) {
+    if (!j || typeof j !== 'object' || !j.name) return false;
+    if (j.type && j.type !== 'filament') return false;
+    return !!(j.type || j.inherits || j.filament_settings_id || j.filament_type || j.nozzle_temperature);
+}
+
+// material from the preset's own names when no filament_type is set anywhere
+function guessType(...names) {
+    const text = names.filter(v => v).join(' ').toUpperCase();
+    return [ 'PETG', 'PCTG', 'PLA', 'ABS', 'ASA', 'TPU', 'PVA', 'PC', 'PA', 'HIPS' ]
+        .find(t => new RegExp(`(^|[^A-Z])${t}([^A-Z]|$)`).test(text));
 }
 
 function store() {
@@ -104,7 +120,15 @@ function store() {
 }
 
 export async function importFilaments(files) {
-    const presets = await readPresets(files);
+    const texts = await readPresets(files);
+    const skipped = [];
+    const presets = [];
+    texts.forEach((text, i) => {
+        let json;
+        try { json = JSON.parse(text) } catch { skipped.push('not JSON'); return; }
+        if (isFilamentPreset(json)) presets.push(json);
+        else skipped.push(json?.name ? `${json.name} (${json.type || 'not a filament'})` : 'not a filament preset');
+    });
     const fil = store();
     const batch = presets.map(raw => ({ name: raw.name, raw }));
     let count = 0;
@@ -118,7 +142,8 @@ export async function importFilaments(files) {
     fil.library.sort((a, b) => a.name.localeCompare(b.name));
     autoAssign();
     api.conf.save();
-    api.show.alert(`imported ${count} filament profile${count === 1 ? '' : 's'}`, 3);
+    api.show.alert(`imported ${count} filament profile${count === 1 ? '' : 's'}` +
+        (skipped.length ? `, skipped ${skipped.length}: ${skipped.join(', ')}` : ''), 6);
     return count;
 }
 
