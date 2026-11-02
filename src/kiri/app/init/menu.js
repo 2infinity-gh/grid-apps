@@ -134,6 +134,8 @@ function content(actions) {
                     menuItem(actions, { id: 'shape-cone', text: 'add cone', iconClass: 'fas fa-play fa-rotate-270' }),
                     menuItem(actions, { id: 'shape-sphere', text: 'add sphere', iconClass: 'fas fa-circle' }),
                     hr(),
+                    menuItem(actions, { id: 'filament-profiles', text: 'filament profiles', iconClass: 'fas fa-palette' }),
+                    hr(),
                     menuItem(actions, { id: 'mesh-export-obj', lk: 'export-obj', text: 'save as OBJ', iconClass: 'fas fa-dice-d20' }),
                     menuItem(actions, { id: 'mesh-export-stl', lk: 'export-stl', text: 'save as  STL', iconClass: 'fas fa-dice-d20' }),
                     hr(),

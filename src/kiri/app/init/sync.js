@@ -13,6 +13,7 @@ import { VIEWS } from '../consts.js';
 import * as view_tools from '../face-tool.js';
 import { shapes } from '../shapes.js';
 import { colorPaint } from '../color-paint.js';
+import { filaments } from '../filaments.js';
 
 const { SETUP, LOCAL } = api.const;
 const { catalog, client, platform, selection, stats, ui } = api;
@@ -357,6 +358,7 @@ function setup_keybd_nav() {
     $('file-recent').onclick = () => { api.modal.show('files') };
     $('file-import').onclick = (ev) => { api.event.import(ev); };
     colorPaint.init();
+    $('filament-profiles').onclick = (ev) => { ev.stopPropagation(); filaments.show() };
     for (let type of shapes.types) {
         $(`shape-${type}`).onclick = (ev) => { ev.stopPropagation(); shapes.add(type) };
     }

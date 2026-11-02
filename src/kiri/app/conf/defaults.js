@@ -1016,6 +1016,8 @@ export const conf = {
         synth: {},
         // widget extra info for slicing (extruder mapping)
         widget: {},
+        // filament profiles (imported from OrcaSlicer) and the profile per slot
+        filaments: { library: [], slots: [] },
         // legacy localStorage settings (like octo print)
         local: {
             'model.opacity': 1.0,

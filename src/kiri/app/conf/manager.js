@@ -12,6 +12,7 @@ import { utils } from '../../core/utils.js';
 import { version } from '../../../moto/license.js';
 import { slotLabel, slotColor, loadSlots, onSlots } from '../slots.js';
 import { colorPaint } from '../color-paint.js';
+import { filaments } from '../filaments.js';
 import { avgc } from '../../core/utils.js';
 import { JSZip } from '../../../ext/jszip-esm.js';
 
@@ -352,7 +353,8 @@ function updateExtruderFields(device) {
                 onclick() { colorPaint.start(i) }
             })
         ])).concat(device.extruders.length > 1 ? [
-            h.div([ h.button({ _: 'clear colour paint', onclick() { colorPaint.clear() } }) ])
+            h.div([ h.button({ _: 'clear colour paint', onclick() { colorPaint.clear() } }) ]),
+            h.div([ h.button({ _: 'filament profiles…', onclick() { filaments.show() } }) ])
         ] : []));
     } else {
         api.uc.setClass($('tool-nozzle'), 'hide', true);

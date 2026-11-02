@@ -15,6 +15,11 @@ export function fdm_export(print, online, ondone, ondebug) {
 
     // colour painted regions print as synthetic widgets of their parent object
     const objectId = w => (w.colorOf ?? w).track.grid_id;
+
+    // filament profile per slot (settings.filaments, imported from OrcaSlicer)
+    const filamentLib = settings.filaments?.library || [];
+    const filamentFor = t => filamentLib.find(p => p.name === settings.filaments?.slots?.[t]);
+    const flowOf = t => filamentFor(t)?.flow || 1;
     const { bedWidth, bedDepth, bedRound, bedBelt, maxHeight } = device;
     const { gcodeFan, gcodeLayer, gcodeTrack, gcodePause, gcodeFeature, gcodeChange } = device;
 
@@ -186,6 +191,28 @@ export function fdm_export(print, online, ondone, ondebug) {
             temp_bed: params.outputBedTemp, // range
             bed_temp: params.outputBedTemp, // range
         });
+        applyFilament(layer);
+    }
+
+    // override process values with the active slot's filament profile
+    function applyFilament(layer) {
+        const fil = filamentFor(tool);
+        const first = filamentFor(firstTool || 0);
+        if (first?.bed) {
+            bedTemp = layer === 0 ? (first.bedFirst || first.bed) : first.bed;
+            subst.bed_temp = subst.temp_bed = bedTemp;
+        }
+        if (!fil) return;
+        if (fil.temp) {
+            nozzleTemp = layer === 0 ? (fil.tempFirst || fil.temp) : fil.temp;
+            subst.temp = nozzleTemp;
+        }
+        if (fil.fanMax >= 0) {
+            fanSpeed = layer >= (fil.fanOffLayers ?? 1) ? Math.round(fil.fanMax * 2.55) : 0;
+            subst.fan_speed = subst.speed = fanSpeed;
+        }
+        if (fil.retract >= 0) subst.retract_distance = retDist = fil.retract;
+        if (fil.retractSpeed > 0) subst.retract_speed = retSpeed = fil.retractSpeed * 60;
     }
 
     let rloops = [];
@@ -328,6 +355,11 @@ export function fdm_export(print, online, ondone, ondebug) {
             gcpre.push(line);
         }
     }
+
+    // start temperatures (and {temp}/{bed_temp} in the start G-code) from the first slot's filament profile
+    applyFilament(0);
+    lastNozzleTemp = nozzleTemp;
+    lastBedTemp = bedTemp;
 
     if (pre === 0) preamble();
 
@@ -519,6 +551,9 @@ export function fdm_export(print, online, ondone, ondebug) {
     retract();
 
     subst.remain_time = Math.ceil(print.total_time / 60);
+    if (extShared && filamentFor(tool)?.pa >= 0) {
+        append(`SET_PRESSURE_ADVANCE ADVANCE=${filamentFor(tool).pa}`);
+    }
     while (layer < layers.length) {
         path = layers[layer];
         layerno = path.slice.index;
@@ -531,7 +566,7 @@ export function fdm_export(print, online, ondone, ondebug) {
             lineWidth || extruder.extNozzle,
             extruder.extFilament,
             path.layer === 0 ?
-                (process.firstSliceHeight || process.sliceHeight) : path.height);
+                (process.firstSliceHeight || process.sliceHeight) : path.height) * flowOf(tool);
 
         zpos = path.z || zpos;
         bmax = Math.max(bmax, pos.z * icos);
@@ -611,6 +646,12 @@ export function fdm_export(print, online, ondone, ondebug) {
             let { center, emit, point, speed, type, widget } = out;
 
             speedMMM = (speed || process.outputFeedrate) * 60; // range
+            // cap extrusion speed to the filament's max volumetric speed
+            const mvs = emit && filamentFor(tool)?.mvs;
+            if (mvs) {
+                const h = path.layer === 0 ? (process.firstSliceHeight || process.sliceHeight) : path.height;
+                speedMMM = Math.min(speedMMM, mvs / ((lineWidth || extruder.extNozzle) * h) * 60);
+            }
             if (!isBelt) {
                 fanSpeed = out.fan ?? fanSpeed;
             }
@@ -657,8 +698,20 @@ export function fdm_export(print, online, ondone, ondebug) {
                     lineWidth || extruder.extNozzle,
                     extruder.extFilament,
                     path.layer === 0 ?
-                        (process.firstSliceHeight || process.sliceHeight) : path.height);
+                        (process.firstSliceHeight || process.sliceHeight) : path.height) * flowOf(tool);
+                if (extShared && filamentFor(tool)) {
+                    // like Orca: set the new filament's temperature before the swap
+                    applyFilament(path.layer);
+                    if (nozzleTemp !== lastNozzleTemp) {
+                        append(`M104 S${nozzleTemp}`);
+                        lastNozzleTemp = nozzleTemp;
+                    }
+                    lastFanSpeed = fanSpeed;
+                }
                 appendAllSub(gcodeChange ?? [ "T{tool}" ]);
+                if (extShared && filamentFor(tool)?.pa >= 0) {
+                    append(`SET_PRESSURE_ADVANCE ADVANCE=${filamentFor(tool).pa}`);
+                }
                 if (extShared) {
                     // single nozzle fed by a filament changer (e.g. Anycubic ACE):
                     // the firmware parks the head to cut, swap and purge, so the
