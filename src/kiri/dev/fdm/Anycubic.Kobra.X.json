@@ -39,7 +39,8 @@
     "gcodeChange": [
         "; FLUSH_START",
         "T{tool} ; ACE swaps filament and purges into the chute",
-        "; FLUSH_END"
+        "; FLUSH_END",
+        "M106 S{fan_speed} ; restore part fan after the swap"
     ],
     "gcodePost": [
         "M400",
@@ -92,7 +93,7 @@
             "outputRetractDwell": 0,
             "outputBrimCount": 0,
             "outputMinSpeed": 10,
-            "outputPurgeTower": 0,
+            "outputPurgeTower": 100,
             "zHopDistance": 0.4,
             "ranges": []
         }
