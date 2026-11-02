@@ -361,7 +361,8 @@ function exportGCodeDialog(gcode, sections, info, names) {
         let set = api.conf.get();
         let fdm = MODE === MODES.FDM;
         let cam = MODE === MODES.CAM;
-        let octo = set.controller.exportOcto && !cam;
+        // always offer sending for printers behind kx-bridge (shared-nozzle Kobra X)
+        let octo = (set.controller.exportOcto || set.device.extShared) && !cam;
         let preview = set.controller.exportPreview;
         $('code-preview-head').style.display = preview ? '' : 'none';
         $('code-preview').style.display = preview ? '' : 'none';

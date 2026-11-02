@@ -12,12 +12,15 @@ export function fdm_export(print, online, ondone, ondebug) {
     const { widgets, settings, belty, tools, firstTool } = print;
     const { bounds, controller, device, process, filter, mode } = settings;
     const { extruders, fwRetract, extShared } = device;
+
+    // colour painted regions print as synthetic widgets of their parent object
+    const objectId = w => (w.colorOf ?? w).track.grid_id;
     const { bedWidth, bedDepth, bedRound, bedBelt, maxHeight } = device;
     const { gcodeFan, gcodeLayer, gcodeTrack, gcodePause, gcodeFeature, gcodeChange } = device;
 
     let model_labels = [];
     for (let widget of widgets) {
-        model_labels.push(widget.track.grid_id);
+        model_labels.push(objectId(widget));
     }
 
     let layers = print.output,
@@ -616,15 +619,15 @@ export function fdm_export(print, online, ondone, ondebug) {
             // so that gcode between start/stop comments can be cancelled
             if (widget !== cwidget) {
                 if (cwidget) {
-                    append(`; end object id: ${cwidget.track.grid_id}`);
+                    append(`; end object id: ${objectId(cwidget)}`);
                     isBambu && append('M625');
                 }
                 if (widget) {
-                    let off = model_labels.indexOf(widget.track.grid_id);
+                    let off = model_labels.indexOf(objectId(widget));
                     let b64 = encodeBitOffset(off);
-                    append(`; start object id: ${widget.track.grid_id}`);
+                    append(`; start object id: ${objectId(widget)}`);
                     isBambu && append(`M624 ${b64}`);
-                    subst.oid = widget.track.grid_id;
+                    subst.oid = objectId(widget);
                     subst.oname = widget.meta.file;
                 }
                 cwidget = widget;
@@ -775,7 +778,7 @@ export function fdm_export(print, online, ondone, ondebug) {
         }
         layer++;
         if (cwidget) {
-            append(`; end object id: ${cwidget.track.grid_id}`);
+            append(`; end object id: ${objectId(cwidget)}`);
             isBambu && append('M625');
             cwidget = undefined;
         }

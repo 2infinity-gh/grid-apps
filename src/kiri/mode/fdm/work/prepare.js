@@ -608,8 +608,8 @@ export async function fdm_prepare(widgets, settings, update) {
             nwid.belt = widget.belt;
             nwid.anno.extruder = parseInt(tool);
             nwid.meta.file = widget.meta?.file;
-            // same object id as the parent, so per-object cancel covers all colours
-            if (nwid.track && widget.track) nwid.track.grid_id = widget.track.grid_id;
+            // export labels it with the parent's object id, so cancel covers all colours
+            nwid.colorOf = widget;
             widgets.push(nwid);
         }
     }
