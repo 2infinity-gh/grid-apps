@@ -64,6 +64,12 @@ function slicerPostProcessor(data, options) {
         data.tops = POLY.nest([...inner, ...outer]);
     }
 
+    // colour painting: split the layer into one region per filament slot,
+    // each region then gets its own shells and fill below
+    if (post_args.colorPaint?.length) {
+        data.tops = splitColorTops(data.tops, z, post_args.colorPaint, post_args.baseTool);
+    }
+
     const index = zIndexes.indexOf(z);
     const range = getRangeParameters(process, index);
     // calculate fractional shells
@@ -95,6 +101,60 @@ function slicerPostProcessor(data, options) {
     data.tops = nutops;
     delete data.groups;
 };
+
+/**
+ * Split layer polygons by colour paint. Paint records are spheres
+ * { point, radius, tool } in widget coordinates; strokes apply in order so
+ * a later stroke wins where they overlap, and painting the widget's own
+ * tool erases. Returns top bundles { poly, tool } for layerProcessTop().
+ */
+function splitColorTops(tops, z, paint, baseTool) {
+    let regions = {}; // tool -> non-overlapping polygons painted with it
+    let batch = [];
+    let batchTool;
+    const flush = () => {
+        if (!batch.length) return;
+        const stroke = POLY.union(batch, 0, true);
+        for (const tool in regions) {
+            if (+tool === batchTool) continue;
+            const rest = [];
+            POLY.subtract(regions[tool], stroke, rest, null, z, 0);
+            regions[tool] = rest;
+        }
+        if (batchTool !== baseTool) {
+            regions[batchTool] = POLY.union([ ...(regions[batchTool] || []), ...stroke ], 0, true);
+        }
+        batch = [];
+    };
+    for (const { point, radius, tool } of paint) {
+        const dz = Math.abs(z - point.z);
+        if (dz >= radius) continue;
+        if (tool !== batchTool) {
+            flush();
+            batchTool = tool;
+        }
+        // cross-section of the paint sphere at this layer
+        batch.push(newPolygon().centerCircle(point, Math.sqrt(radius * radius - dz * dz), 24).setZ(z));
+    }
+    flush();
+
+    const painted = Object.entries(regions).filter(([, polys]) => polys.length);
+    if (!painted.length) {
+        return tops;
+    }
+    const out = [];
+    const rest = [];
+    POLY.subtract(tops, POLY.union(painted.flatMap(([, polys]) => polys), 0, true), rest, null, z);
+    for (const poly of rest) {
+        out.push({ poly, tool: baseTool });
+    }
+    for (const [tool, polys] of painted) {
+        for (const poly of POLY.trimTo(tops, polys, { minArea: 0.1 }) || []) {
+            out.push({ poly, tool: +tool });
+        }
+    }
+    return out;
+}
 
 function offset_default(params) {
     let { z, top, count, top_poly, offset1, offsetN, wasm, last, gaps, thin } = params;

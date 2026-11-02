@@ -12,6 +12,7 @@ import { space } from '../../../moto/space.js';
 import { VIEWS } from '../consts.js';
 import * as view_tools from '../face-tool.js';
 import { shapes } from '../shapes.js';
+import { colorPaint } from '../color-paint.js';
 
 const { SETUP, LOCAL } = api.const;
 const { catalog, client, platform, selection, stats, ui } = api;
@@ -355,6 +356,7 @@ function setup_keybd_nav() {
     $('file-new').onclick = (ev) => { ev.stopPropagation(); settingsOps.new_workspace() };
     $('file-recent').onclick = () => { api.modal.show('files') };
     $('file-import').onclick = (ev) => { api.event.import(ev); };
+    colorPaint.init();
     for (let type of shapes.types) {
         $(`shape-${type}`).onclick = (ev) => { ev.stopPropagation(); shapes.add(type) };
     }

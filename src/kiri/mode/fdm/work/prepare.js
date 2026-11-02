@@ -227,6 +227,17 @@ export async function fdm_prepare(widgets, settings, update) {
             extcount++;
         }
     }
+    // add tools used by colour painted regions
+    for (let widget of widgets) {
+        for (let slice of widget.slices || []) {
+            for (let top of slice.tops || []) {
+                if (top.tool >= 0 && !extruders[top.tool]) {
+                    extruders[top.tool] = {};
+                    extcount++;
+                }
+            }
+        }
+    }
     // add support tool, if not already used
     if (!extruders[sliceSupportNozzle]) {
         extruders[sliceSupportNozzle] = {};
@@ -554,6 +565,51 @@ export async function fdm_prepare(widgets, settings, update) {
             nwid.slices = slices;
             nwid.offset = widget.offset;  // inherit calculated offset from parent
             nwid.belt = widget.belt; // inherit any belt transformations
+            widgets.push(nwid);
+        }
+    }
+
+    // Split colour painted layers into one synthetic widget per extra filament
+    // (like supports above). Painted tops carry top.tool from the slicer; the
+    // parent widget keeps the tops printed with its own extruder.
+    for (let widget of widgets.slice()) {
+        if (widget.support) continue;
+        let byTool = {};
+        for (let slice of widget.slices) {
+            if (!slice.tops?.some(top => top.tool >= 0 && top.tool !== slice.extruder)) continue;
+            let keep = [];
+            let split = {};
+            for (let top of slice.tops) {
+                let tool = top.tool ?? slice.extruder;
+                if (tool === slice.extruder) {
+                    keep.push(top);
+                    continue;
+                }
+                let nslice = split[tool];
+                if (!nslice) {
+                    nslice = split[tool] = newSlice(slice.z);
+                    nslice.belt = slice.belt;
+                    nslice.height = slice.height;
+                    nslice.index = slice.index;
+                    nslice.params = slice.params;
+                    nslice.isFlatsLayer = slice.isFlatsLayer;
+                    nslice.isBridgeLayer = slice.isBridgeLayer;
+                    nslice.extruder = tool;
+                    (byTool[tool] = byTool[tool] || []).push(nslice);
+                }
+                nslice.tops.push(top);
+            }
+            slice.tops = keep;
+        }
+        for (let [tool, slices] of Object.entries(byTool)) {
+            let nwid = newWidget(null, widget.group);
+            nwid.slices = slices;
+            nwid.offset = widget.offset;
+            nwid.belt = widget.belt;
+            nwid.anno.extruder = parseInt(tool);
+            nwid.meta.file = widget.meta?.file;
+            // same object id as the parent, so per-object cancel covers all colours
+            if (nwid.track && widget.track) nwid.track.grid_id = widget.track.grid_id;
             widgets.push(nwid);
         }
     }

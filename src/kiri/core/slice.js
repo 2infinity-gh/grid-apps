@@ -161,6 +161,8 @@ class Slice {
             top.gaps = data.gaps;
             top.shells = data.shells.filter(p => p.area() > minArea);
             top.simple = data.simple;
+            // filament slot from colour painting (undefined = the widget's own)
+            top.tool = data.tool;
             this.tops.push(top);
             return top;
         }

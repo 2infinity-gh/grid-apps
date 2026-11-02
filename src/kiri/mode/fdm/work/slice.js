@@ -344,6 +344,9 @@ export function sliceOne(settings, widget, onupdate, ondone) {
             lineWidth,
             vaseMode,
             process,
+            // colour paint spheres split layers per filament (see post.js)
+            colorPaint: widget.anno.cpaint?.length ? widget.anno.cpaint : undefined,
+            baseTool: extruder,
         },
         zGen,
         // slicer function (worker local or minion distributed)
