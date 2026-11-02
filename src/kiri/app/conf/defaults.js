@@ -358,6 +358,19 @@ export const conf = {
                 sliceTopLayers: 3,
                 sliceZInterleave: false,
                 zHopDistance: 0.2,
+                // per-feature accelerations in mm/s² (0 = leave the machine default)
+                outputAccel: 0,
+                outputAccelOuter: 0,
+                outputAccelInner: 0,
+                outputAccelFill: 0,
+                outputAccelTop: 0,
+                outputAccelTravel: 0,
+                outputAccelFirst: 0,
+                // ironing of top surfaces
+                outputIronType: "none",
+                outputIronFlow: 0.1,
+                outputIronSpacing: 0.15,
+                outputIronSpeed: 30,
             }
         },
         sla:{

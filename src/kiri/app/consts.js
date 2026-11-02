@@ -19,6 +19,13 @@ const LISTS = {
         { name: "origin" },
         { name: "random" },
         { name: "spiral" },
+        { name: "aligned" },
+        { name: "back" },
+    ],
+    iron: [
+        { name: "none" },
+        { name: "top" },
+        { name: "topmost" },
     ],
     infill: [
         { name: "none" },

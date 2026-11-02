@@ -95,6 +95,14 @@
             "outputMinSpeed": 10,
             "outputPurgeTower": 100,
             "zHopDistance": 0.4,
+            "sliceLayerStart": "aligned",
+            "outputAccel": 6000,
+            "outputAccelOuter": 2000,
+            "outputAccelInner": 4000,
+            "outputAccelFill": 5000,
+            "outputAccelTop": 2000,
+            "outputAccelTravel": 6000,
+            "outputAccelFirst": 500,
             "ranges": []
         }
     ]

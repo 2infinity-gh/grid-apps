@@ -78,7 +78,7 @@ function resolve(json, batch, library) {
     return { ...typeDefaults(merged.type), ...merged, name, raw: undefined };
 }
 
-async function readPresets(files) {
+export async function readPresets(files) {
     const out = [];
     for (const file of files) {
         if (file.name.toLowerCase().endsWith('.zip')) {

@@ -569,6 +569,16 @@ export async function fdm_prepare(widgets, settings, update) {
         }
     }
 
+    // ironing needs what lies above each layer (all colours): snapshot it
+    // before colour painted layers are split into separate widgets
+    if (process.outputIronType && process.outputIronType !== 'none') {
+        for (let widget of widgets) {
+            for (let slice of widget.slices || []) {
+                slice.upPolys = slice.up?.tops?.length ? slice.up.topPolys() : [];
+            }
+        }
+    }
+
     // Split colour painted layers into one synthetic widget per extra filament
     // (like supports above). Painted tops carry top.tool from the slicer; the
     // parent widget keeps the tops printed with its own extruder.
@@ -595,6 +605,7 @@ export async function fdm_prepare(widgets, settings, update) {
                     nslice.isFlatsLayer = slice.isFlatsLayer;
                     nslice.isBridgeLayer = slice.isBridgeLayer;
                     nslice.extruder = tool;
+                    nslice.upPolys = slice.upPolys;
                     (byTool[tool] = byTool[tool] || []).push(nslice);
                 }
                 nslice.tops.push(top);
@@ -1335,6 +1346,8 @@ function slicePrintPath(print, slice, startPoint, offset, output, opt = {}) {
         } else {
             let finishShell = poly.depth === 0 && !firstLayer;
             let scarf = (slice.index > 0 && traceNo === 0 && z - startPoint?.z > 1e-3) ? scarfLength : 0;
+            // mark outer vs inner walls so export can apply their own accelerations
+            if (opt.shell) print.setType(poly.depth === 0 ? 'outer wall' : 'shells');
             startPoint = print.polyPrintPath(poly, startPoint, preout, {
                 accel: finishShell,
                 arcOpts: fdmArcEnabled ? arcOpts : undefined,
@@ -1417,6 +1430,23 @@ function slicePrintPath(print, slice, startPoint, offset, output, opt = {}) {
      * output sparse infill
      * @param {Polygon[]} polys
      */
+    // lines to iron on a top: the part of it not covered by the layer above
+    // ("topmost" only irons where nothing at all is above), inset from the walls
+    function ironLines(top) {
+        const type = process.outputIronType;
+        const above = slice.upPolys;
+        if (!type || type === 'none' || !above) return;
+        if (type === 'topmost' && above.length) return;
+        let exposed = [ top.poly ];
+        if (above.length) {
+            exposed = [];
+            POLY.subtract([ top.poly ], above, exposed, null, slice.z, nozzleSize * nozzleSize);
+        }
+        const inset = POLY.offset(exposed, -nozzleSize * 0.75, { z: slice.z });
+        if (!inset?.length) return;
+        return POLY.fillArea(inset, slice.index % 2 ? 45 : 135, process.outputIronSpacing || 0.15, null);
+    }
+
     function outputSparse(polys, extrude, speed) {
         if (!polys) return;
         let proxy = polys.map((poly) => {
@@ -1732,8 +1762,8 @@ function slicePrintPath(print, slice, startPoint, offset, output, opt = {}) {
                 retract();
             }
 
-            // control of layer start point
-            if (!lastTop)
+            // control of layer start point (aligned / back apply to every island)
+            if (!lastTop || process.sliceLayerStart === 'aligned' || process.sliceLayerStart === 'back')
             switch (process.sliceLayerStart) {
                 case "spiral": {
                     let center = top.poly.bounds.center();
@@ -1756,6 +1786,16 @@ function slicePrintPath(print, slice, startPoint, offset, output, opt = {}) {
                 case "center":
                     startPoint = newPoint(0,0,startPoint.z);
                     break;
+                case "back": {
+                    // seam at the back (+Y) of each island
+                    let center = top.poly.bounds.center();
+                    startPoint = newPoint(center.x, center.y + 10000, startPoint.z);
+                    } break;
+                case "aligned": {
+                    // seam in one fixed direction (rear left) so it stacks into a line
+                    let center = top.poly.bounds.center();
+                    startPoint = newPoint(center.x - 10000, center.y + 10000, startPoint.z);
+                    } break;
                 case "origin":
                     startPoint = newPoint(-bedOffset.x, -bedOffset.y, startPoint.z);
                     break;
@@ -1808,6 +1848,16 @@ function slicePrintPath(print, slice, startPoint, offset, output, opt = {}) {
 
             print.setType('sparse infill');
             outputSparse(next.fill_sparse, sparseMult, infillSpeed);
+
+            // ironing: a low flow pass over the island's exposed top surface
+            let iron = !firstLayer && !isRaft && ironLines(next);
+            if (iron?.length) {
+                print.setType('ironing');
+                let saveSpeed = fillSpeed;
+                fillSpeed = process.outputIronSpeed || fillSpeed;
+                outputFills(iron, { fill: process.outputIronFlow ?? 0.1 });
+                fillSpeed = saveSpeed;
+            }
 
             lastTop = next;
         }

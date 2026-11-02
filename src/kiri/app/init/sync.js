@@ -14,6 +14,7 @@ import * as view_tools from '../face-tool.js';
 import { shapes } from '../shapes.js';
 import { colorPaint } from '../color-paint.js';
 import { filaments } from '../filaments.js';
+import { processImport } from '../process-import.js';
 
 const { SETUP, LOCAL } = api.const;
 const { catalog, client, platform, selection, stats, ui } = api;
@@ -360,6 +361,8 @@ function setup_keybd_nav() {
     colorPaint.init();
     $('filament-profiles').onclick = (ev) => { ev.stopPropagation(); filaments.show() };
     $('set-filaments').onclick = (ev) => { ev.stopPropagation(); filaments.show() };
+    $('set-orca-process').onclick = (ev) => { ev.stopPropagation(); processImport.pick() };
+    $('file-orca-process').onclick = (ev) => { ev.stopPropagation(); processImport.pick() };
     for (let type of shapes.types) {
         $(`shape-${type}`).onclick = (ev) => { ev.stopPropagation(); shapes.add(type) };
     }

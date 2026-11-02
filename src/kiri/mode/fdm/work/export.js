@@ -194,6 +194,25 @@ export function fdm_export(print, online, ondone, ondebug) {
         applyFilament(layer);
     }
 
+    // per-feature acceleration, written like OrcaSlicer does for Klipper
+    // (Kiri types only the first output of a feature, so keep the last one seen)
+    let lastAccel, feature;
+    function setAccel(type, emit, speed, path) {
+        type = feature = type ?? feature;
+        let accel;
+        if (path.layer === 0 && process.outputAccelFirst) accel = process.outputAccelFirst;
+        else if (!emit) accel = process.outputAccelTravel;
+        else if (type === 'outer wall') accel = process.outputAccelOuter;
+        else if (type === 'shells') accel = process.outputAccelInner;
+        else if (type === 'solid fill' || type === 'ironing') accel = process.outputAccelTop;
+        else if (type === 'sparse infill' || type === 'thin fill') accel = process.outputAccelFill;
+        accel = accel || process.outputAccel;
+        if (accel && accel !== lastAccel) {
+            append(`SET_VELOCITY_LIMIT ACCEL=${accel} ACCEL_TO_DECEL=${Math.round(accel / 2)}`);
+            lastAccel = accel;
+        }
+    }
+
     // override process values with the active slot's filament profile
     function applyFilament(layer) {
         const fil = filamentFor(tool);
@@ -709,6 +728,8 @@ export function fdm_export(print, online, ondone, ondebug) {
                     lastFanSpeed = fanSpeed;
                 }
                 appendAllSub(gcodeChange ?? [ "T{tool}" ]);
+                // the swap may reset velocity limits: send the acceleration again
+                lastAccel = undefined;
                 if (extShared && filamentFor(tool)?.pa >= 0) {
                     append(`SET_PRESSURE_ADVANCE ADVANCE=${filamentFor(tool).pa}`);
                 }
@@ -730,6 +751,8 @@ export function fdm_export(print, online, ondone, ondebug) {
                 dwell(out.speed);
                 continue;
             }
+
+            setAccel(type, emit, speed, path);
 
             // translate point to workspace coordinates
             let x = point.x + offset_x + offset.x,
