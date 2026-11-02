@@ -1045,14 +1045,25 @@ function load_files(files, group) {
                 let odon = function(models) {
                     let msg = api.show.alert('Adding Objects');
                     for (let model of models) {
-                        load_verts(group, model.faces, model.name ? `${model.name}-${name}` : name);
+                        let widget = load_verts(group, model.faces, model.name ? `${model.name}-${name}` : name);
+                        // filament per object / part and painted faces from OrcaSlicer projects
+                        if (model.extruder > 0) widget.anno.extruder = model.extruder - 1;
+                        if (model.paint) widget.cpaintImport = { ref: model.faces.slice(0, 3), paint: model.paint };
                     }
                     load_dec();
                     api.hide.alert(msg);
+                    if (models.some(m => m.paint || m.extruder > 1)) {
+                        // after layout/centering settles, turn imported colours into slots and paint
+                        setTimeout(() => api.event.emit('cpaint.import'), 400);
+                    }
                 }
                 let msg = api.show.alert('Decoding 3MF');
                 file_load.TMF.parseAsync(data).then(models => {
                     api.hide.alert(msg);
+                    // parts of one object with different filaments must stay together
+                    if (models.some(m => m.part) && !group) {
+                        group = [];
+                    }
                     if (models.length > 1 && !group) {
                         api.uc.confirm(`group ${models.length} objects?`).then(ok => {
                             if (ok) {

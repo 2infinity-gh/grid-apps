@@ -220,8 +220,56 @@ function dropPaint(widget, why) {
     api.show.alert(`colour paint removed (${why})`, 3);
 }
 
+// Imported painted triangles (OrcaSlicer 3MF, filament states 1-based) to
+// paint spheres in widget coordinates: the mesh may have been shifted while
+// loading, so take the offset from the first vertex before/after.
+const IMPORT_RADIUS = 1.2;
+function importPaint(widget) {
+    const { ref, paint } = widget.cpaintImport;
+    delete widget.cpaintImport;
+    const pa = widget.mesh.geometry.attributes.position.array;
+    const shift = [ ref[0] - pa[0], ref[1] - pa[1], ref[2] - pa[2] ];
+    let step = IMPORT_RADIUS;
+    let out;
+    // sample each painted triangle on a grid; coarsen if it gets too heavy
+    do {
+        const seen = new Set();
+        out = [];
+        for (const { state, tri } of paint) {
+            const a = tri.slice(0, 3), b = tri.slice(3, 6), c = tri.slice(6, 9);
+            const edge = Math.max(dist3(a, b), dist3(b, c), dist3(c, a));
+            const n = Math.max(1, Math.ceil(edge / step));
+            for (let i = 0; i <= n; i++) {
+                for (let j = 0; j <= n - i; j++) {
+                    const p = [0, 1, 2].map(k => a[k] + (b[k] - a[k]) * i / n + (c[k] - a[k]) * j / n - shift[k]);
+                    const key = `${state}:${p.map(v => Math.round(v / (step / 2))).join(',')}`;
+                    if (seen.has(key)) continue;
+                    seen.add(key);
+                    out.push({ point: { x: p[0], y: p[1], z: p[2] }, radius: IMPORT_RADIUS, tool: state - 1 });
+                }
+            }
+        }
+        step *= 1.5;
+    } while (out.length > 12000);
+    widget.anno.cpaint = [ ...(widget.anno.cpaint || []), ...out ];
+    updateColorOverlay(widget);
+}
+
+function dist3(a, b) {
+    return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+}
+
 // hook into the app: keys, restoring overlays on load, keeping paint in step with transforms
 export function initColorPaint() {
+    api.event.on('cpaint.import', () => {
+        const scheme = colorSchemeRegistry.getScheme(api.mode.get_id(), api.space.is_dark() ? 'dark' : 'light').widget;
+        for (const w of api.widgets.all()) {
+            if (w.cpaintImport) importPaint(w);
+            w.setColor(api.selection.contains(w) ? scheme.selected : scheme.deselected, undefined, false);
+        }
+        api.space.update();
+        api.conf.save();
+    });
     api.onkey(evt => {
         if (evt.key) return paintKey(evt.key);
         if (evt.up?.key === 'Escape') return paintKey(evt.up);

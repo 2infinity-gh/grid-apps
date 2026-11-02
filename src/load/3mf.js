@@ -97,6 +97,7 @@ function loadModel(doc) {
                             ]);
                         });
                         let mesh = object.mesh = [];
+                        let paint = object.paint = [];
                         query(node, ["triangles","+triangle"], (type, triangle) => {
                             let v1 = parseInt(triangle.getAttribute("v1"));
                             let v2 = parseInt(triangle.getAttribute("v2"));
@@ -104,6 +105,9 @@ function loadModel(doc) {
                             mesh.appendAll(vertices[v1]);
                             mesh.appendAll(vertices[v2]);
                             mesh.appendAll(vertices[v3]);
+                            // OrcaSlicer / PrusaSlicer multi-material painting
+                            paint.push(triangle.getAttribute("paint_color")
+                                || triangle.getAttribute("slic3rpe:mmu_segmentation") || null);
                         });
                     });
                     if (object.mesh) {
@@ -174,6 +178,8 @@ function extractItems(records) {
                 continue;
             }
             mesh = object.mesh = [];
+            object.paint = [];
+            object.parts = [];
             for (let component of components) {
                 let { oid, path, xform } = component;
                 let omap = objects;
@@ -184,11 +190,16 @@ function extractItems(records) {
                 let ref = omap[oid];
                 if (!ref) {
                     console.log({ missing_ref: oid, objects, components });
-                } else if (xform) {
+                    continue;
+                }
+                let start = mesh.length / 9;
+                if (xform) {
                     mesh.appendAll(transform(xform, ref.mesh));
                 } else {
                     mesh.appendAll(ref.mesh);
                 }
+                object.paint.appendAll(ref.paint || new Array(ref.mesh.length / 9).fill(null));
+                object.parts.push({ id: oid, start, end: mesh.length / 9 });
             }
         }
     }
@@ -198,8 +209,10 @@ function extractItems(records) {
         let { items, objects } = model;
         for (let item of items || []) {
             let { oid, xform } = item;
-            let { name, mesh } = objects[oid];
+            let { name, mesh, paint, parts } = objects[oid];
             item.name = name;
+            item.paint = paint;
+            item.parts = parts;
             if (xform) {
                 item.faces = transform(xform, mesh);
             } else {
@@ -347,14 +360,125 @@ export function parseAsync(data) {
     return new Promise(async (resolve, reject) => {
         let zip = await new JSZip().loadAsync(data);
         let models = {};
+        let config;
         for (let [key, value] of Object.entries(zip.files)) {
             if (key.endsWith(".model")) {
                 let xml = await value.async("string");
                 let { objects, items } = await loadModel(new DOMParser().parseFromString(xml, "text/xml"));
                 models[key] = { objects, items };
+            } else if (key.endsWith("model_settings.config")) {
+                config = readSlicerConfig(new DOMParser().parseFromString(await value.async("string"), "text/xml"));
             }
         }
-        resolve(extractItems(models));
+        resolve(colourItems(extractItems(models), config));
     });
+}
+
+/**
+ * OrcaSlicer / Bambu Studio project settings: filament (extruder, 1-based)
+ * per object and per part. Returns { objectId: { extruder, parts: { partId: extruder } } }
+ */
+function readSlicerConfig(doc) {
+    let out = {};
+    let meta = (node, key) => {
+        for (let child of [...node.childNodes]) {
+            if (child.tagName === 'metadata' && child.getAttribute('key') === key) {
+                return parseInt(child.getAttribute('value')) || undefined;
+            }
+        }
+    };
+    for (let object of [...doc.getElementsByTagName('object')]) {
+        let rec = out[object.getAttribute('id')] = { extruder: meta(object, 'extruder'), parts: {} };
+        for (let part of [...object.getElementsByTagName('part')]) {
+            rec.parts[part.getAttribute('id')] = meta(part, 'extruder');
+        }
+    }
+    return out;
+}
+
+/**
+ * Attach colour info to items: { extruder } (1-based filament) and
+ * { paint: [ { state, tri: [9 floats] } ] } for painted (sub)triangles.
+ * Objects whose parts use different filaments are split into one item per
+ * part, flagged { part: true } so they load as a group.
+ */
+function colourItems(items, config = {}) {
+    let out = [];
+    for (let item of items) {
+        let cfg = config[item.oid] || {};
+        let parts = (item.parts || []).map(part => ({ ...part, extruder: cfg.parts?.[part.id] || cfg.extruder }));
+        let split = parts.length > 1 && new Set(parts.map(p => p.extruder || 0)).size > 1;
+        let ranges = split ? parts : [ { start: 0, end: item.faces.length / 9, extruder: cfg.extruder || parts[0]?.extruder } ];
+        for (let range of ranges) {
+            let faces = item.faces.slice(range.start * 9, range.end * 9);
+            let paint = [];
+            for (let t = range.start; t < range.end; t++) {
+                let code = item.paint?.[t];
+                if (code) paint.appendAll(decodePaint(code, item.faces.slice(t * 9, t * 9 + 9)));
+            }
+            out.push({
+                name: item.name,
+                faces,
+                extruder: range.extruder,
+                paint: paint.length ? paint : undefined,
+                part: split
+            });
+        }
+    }
+    return out;
+}
+
+/**
+ * Decode one triangle's paint string (OrcaSlicer TriangleSelector serialization)
+ * into painted leaf triangles. The hex string is read from the end, one nibble
+ * per character: bits 0-1 = split sides (0 = leaf), bits 2-3 = leaf state or
+ * special side; leaf state 3+ continues in the next nibble. Children of a split
+ * are stored last child first.
+ */
+export function decodePaint(code, tri) {
+    let nibbles = [...code].reverse().map(ch => parseInt(ch, 16));
+    let pos = 0;
+    let next = () => {
+        if (pos >= nibbles.length) throw new Error('paint data too short');
+        return nibbles[pos++];
+    };
+    let mid = (a, b) => [ (a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2 ];
+    let out = [];
+    let walk = (verts) => {
+        let n = next();
+        let sides = n & 0b11;
+        if (sides === 0) {
+            let state = (n & 0b1100) === 0b1100 ? (v => v === 0b1111 ? next() + 18 : v + 3)(next()) : n >> 2;
+            if (state > 0) out.push({ state, tri: verts.flat() });
+            return;
+        }
+        let special = sides === 3 ? 0 : n >> 2;
+        // rotate so the special side comes first, as TriangleSelector::perform_split
+        let v = [0, 1, 2].map(j => verts[(special + j) % 3]);
+        let children;
+        if (sides === 1) {
+            let m = mid(v[2], v[1]);
+            children = [ [v[0], v[1], m], [m, v[2], v[0]] ];
+        } else if (sides === 2) {
+            let m1 = mid(v[1], v[0]);
+            let m2 = mid(v[0], v[2]);
+            children = [ [v[0], m1, m2], [m1, v[1], m2], [v[1], v[2], m2] ];
+        } else {
+            let m01 = mid(v[1], v[0]);
+            let m12 = mid(v[2], v[1]);
+            let m20 = mid(v[0], v[2]);
+            children = [ [v[0], m01, m20], [m01, v[1], m12], [m12, v[2], m20], [m01, m12, m20] ];
+        }
+        for (let i = children.length - 1; i >= 0; i--) {
+            walk(children[i]);
+        }
+    };
+    try {
+        // plain arrays: faces may be a Float32Array, which flat() would not unpack
+        walk([ Array.from(tri.slice(0, 3)), Array.from(tri.slice(3, 6)), Array.from(tri.slice(6, 9)) ]);
+    } catch (e) {
+        return [];
+    }
+    return out;
 }
 
