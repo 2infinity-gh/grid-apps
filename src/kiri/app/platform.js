@@ -12,6 +12,7 @@ import { Packer } from './pack.js';
 import { space } from '../../moto/space.js';
 import { THREE } from '../../ext/three.js';
 import { Widget, newWidget } from './widget.js';
+import { choosePlate } from './plates.js';
 
 const V0 = new THREE.Vector3(0,0,0);
 
@@ -1058,13 +1059,26 @@ function load_files(files, group) {
                     }
                 }
                 let msg = api.show.alert('Decoding 3MF');
-                file_load.TMF.parseAsync(data).then(models => {
+                file_load.TMF.parseAsync(data).then(async models => {
                     api.hide.alert(msg);
+                    // multi-plate projects: load one plate (or all of them)
+                    let plated = models.plates?.length > 1;
+                    if (plated) {
+                        let plate = await choosePlate(models.plates, name);
+                        if (plate === null) {
+                            load_dec();
+                            return;
+                        }
+                        if (plate !== 'all') {
+                            models = models.filter(m => m.plate === plate);
+                        }
+                    }
                     // parts of one object with different filaments must stay together
                     if (models.some(m => m.part) && !group) {
                         group = [];
                     }
-                    if (models.length > 1 && !group) {
+                    // a chosen plate holds separate objects: don't offer to group them
+                    if (models.length > 1 && !group && !plated) {
                         api.uc.confirm(`group ${models.length} objects?`).then(ok => {
                             if (ok) {
                                 group = [];

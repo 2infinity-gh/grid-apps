@@ -387,12 +387,28 @@ function readSlicerConfig(doc) {
             }
         }
     };
+    let text = (node, key) => {
+        for (let child of [...node.childNodes]) {
+            if (child.tagName === 'metadata' && child.getAttribute('key') === key) {
+                return child.getAttribute('value');
+            }
+        }
+    };
     for (let object of [...doc.getElementsByTagName('object')]) {
         let rec = out[object.getAttribute('id')] = { extruder: meta(object, 'extruder'), parts: {} };
         for (let part of [...object.getElementsByTagName('part')]) {
             rec.parts[part.getAttribute('id')] = meta(part, 'extruder');
         }
     }
+    // build plates: which object instances sit on which plate
+    out.plates = [...doc.getElementsByTagName('plate')].map(plate => ({
+        id: meta(plate, 'plater_id'),
+        name: text(plate, 'plater_name') || '',
+        instances: [...plate.getElementsByTagName('model_instance')].map(inst => ({
+            object: text(inst, 'object_id'),
+            instance: parseInt(text(inst, 'instance_id')) || 0
+        }))
+    })).filter(p => p.id);
     return out;
 }
 
@@ -404,8 +420,12 @@ function readSlicerConfig(doc) {
  */
 function colourItems(items, config = {}) {
     let out = [];
+    let seen = {};
     for (let item of items) {
         let cfg = config[item.oid] || {};
+        // which plate this build item (object instance) belongs to
+        let instance = seen[item.oid] = (seen[item.oid] ?? -1) + 1;
+        let plate = config.plates?.find(p => p.instances.some(i => i.object == item.oid && i.instance === instance))?.id;
         let parts = (item.parts || []).map(part => ({ ...part, extruder: cfg.parts?.[part.id] || cfg.extruder }));
         let split = parts.length > 1 && new Set(parts.map(p => p.extruder || 0)).size > 1;
         let ranges = split ? parts : [ { start: 0, end: item.faces.length / 9, extruder: cfg.extruder || parts[0]?.extruder } ];
@@ -421,10 +441,15 @@ function colourItems(items, config = {}) {
                 faces,
                 extruder: range.extruder,
                 paint: paint.length ? paint : undefined,
-                part: split
+                part: split,
+                plate
             });
         }
     }
+    // plates that hold something, for the import dialog
+    out.plates = (config.plates || [])
+        .map(p => ({ id: p.id, name: p.name, count: out.filter(m => m.plate === p.id).length }))
+        .filter(p => p.count);
     return out;
 }
 
