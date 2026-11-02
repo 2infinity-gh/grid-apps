@@ -605,9 +605,10 @@ function exportGCodeDialog(gcode, sections, info, names) {
                 $('opapik').style.display = 'none';
                 $('oph1nt').style.display = 'none';
             }
-            octo_host.value = localGet('octo-host') || '';
+            // default to the kx-bridge Moonraker API proxied on this site (slice.skoren.nl)
+            octo_host.value = localGet('octo-host') || `${location.origin}/printer-api`;
             octo_apik.value = localGet('octo-apik') || '';
-            octo_type.value = localGet('octo-type') || '';
+            octo_type.value = localGet('octo-type') || 'moonraker';
         } catch (e) { console.log(e) }
 
         // preview of the generated GCODE (first 64k max)

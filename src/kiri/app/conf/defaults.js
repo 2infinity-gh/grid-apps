@@ -972,7 +972,7 @@ export const conf = {
             devel: false,
             drawer: false,
             edgeangle: 20,
-            exportOcto: false,
+            exportOcto: true,
             exportPreview: false,
             exportThumb: false,
             freeLayout: true,
