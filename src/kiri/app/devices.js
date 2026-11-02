@@ -91,6 +91,11 @@ function selectDevice(devicename) {
             setDeviceCode(code, devicename);
         }
     }
+    // keep the machine dropdowns in step with the active device
+    for (let sel of [ api.ui.modeDevice, $('dev-list') ]) {
+        let index = sel ? [...sel.options].map(o => o.textContent).indexOf(devicename) : -1;
+        if (index >= 0) sel.selectedIndex = index;
+    }
 }
 
 /**
