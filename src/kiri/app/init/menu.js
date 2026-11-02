@@ -208,6 +208,7 @@ function content(actions) {
                 text: 'setup', lk: 'su_menu', side: 'right', right: true, items: [
                     menuItem(actions, { id: 'set-device', lk: 'machines', text: 'machines', iconClass: 'fas fa-cube' }),
                     menuItem(actions, { id: 'set-profs', lk: 'profs', text: 'profiles', iconClass: 'fas fa-sliders-h' }),
+                    menuItem(actions, { id: 'set-filaments', text: 'filament profiles', iconClass: 'fas fa-palette' }),
                     menuItem(actions, { id: 'set-tools', lk: 'tools', text: 'tools', iconClass: 'fas fa-tools' }),
                     menuItem(actions, { id: 'set-prefs', lk: 'prefs', text: 'prefs', iconClass: 'fa-solid fa-square-check' }),
                     hr({ class: "el-app-hide" }),

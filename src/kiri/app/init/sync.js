@@ -359,6 +359,7 @@ function setup_keybd_nav() {
     $('file-import').onclick = (ev) => { api.event.import(ev); };
     colorPaint.init();
     $('filament-profiles').onclick = (ev) => { ev.stopPropagation(); filaments.show() };
+    $('set-filaments').onclick = (ev) => { ev.stopPropagation(); filaments.show() };
     for (let type of shapes.types) {
         $(`shape-${type}`).onclick = (ev) => { ev.stopPropagation(); shapes.add(type) };
     }

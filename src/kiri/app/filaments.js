@@ -162,66 +162,75 @@ export function slotProfileName(i) {
     return store().slots[i] || '';
 }
 
-// a small dialog: import presets and choose a profile per slot
+// a dialog with one block per slot (stacked vertically): import presets and choose a profile
 export function showFilaments() {
     const fil = store();
     const count = api.conf.get().device.extruders?.length || 1;
     const old = document.getElementById('filament-dialog');
     if (old) old.remove();
-    const wrap = document.createElement('div');
+    // explicit layout on every element: Kiri's page styles must not reflow this dialog
+    const el = (tag, css, text) => {
+        const e = document.createElement(tag);
+        e.style.cssText = css || '';
+        if (text !== undefined) e.textContent = text;
+        return e;
+    };
+    const wrap = el('div', 'position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center');
     wrap.id = 'filament-dialog';
-    wrap.style.cssText = 'position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center';
-    const box = document.createElement('div');
-    box.style.cssText = 'background:#fff;color:#222;border-radius:10px;padding:16px 18px;min-width:340px;max-width:92vw;max-height:85vh;overflow:auto;font:14px sans-serif';
+    const box = el('div', 'display:flex;flex-direction:column;gap:10px;box-sizing:border-box;width:min(480px,94vw);max-height:88vh;overflow-y:auto;background:#fff;color:#222;border-radius:10px;padding:16px 18px;font:14px sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.3)');
     wrap.appendChild(box);
     const close = () => { wrap.remove(); api.conf.save(); };
     wrap.onclick = ev => { if (ev.target === wrap) close() };
+    const button = (text, onclick, primary) => {
+        const b = el('button', `display:inline-block;padding:6px 12px;border-radius:6px;border:1px solid ${primary ? '#3b82f6' : '#bbb'};background:${primary ? '#3b82f6' : '#f3f3f3'};color:${primary ? '#fff' : '#222'};cursor:pointer;font:13px sans-serif`, text);
+        b.onclick = onclick;
+        return b;
+    };
 
     const render = () => {
         box.innerHTML = '';
-        const h = (tag, text, css) => { const e = document.createElement(tag); if (text) e.textContent = text; if (css) e.style.cssText = css; return e; };
-        box.appendChild(h('div', 'Filament profiles', 'font-weight:bold;font-size:16px;margin-bottom:10px'));
+        box.appendChild(el('div', 'display:block;font-weight:bold;font-size:16px', 'Filament profiles'));
         for (let i = 0; i < count; i++) {
-            const row = h('div', null, 'display:flex;gap:8px;align-items:center;margin:6px 0');
             const slot = slotInfo(i);
-            const dot = h('span', null, `width:14px;height:14px;border-radius:50%;border:1px solid #888;background:#${(slot?.color ?? 0xcccccc).toString(16).padStart(6, '0')}`);
-            row.appendChild(dot);
-            row.appendChild(h('span', slotLabel(i), 'min-width:110px'));
-            const sel = document.createElement('select');
-            sel.style.cssText = 'flex:1;max-width:320px';
-            sel.appendChild(new Option('— process settings —', ''));
+            const card = el('div', 'display:flex;flex-direction:column;gap:6px;border:1px solid #e3e3e3;border-radius:8px;padding:10px 12px;background:#fafafa');
+            const head = el('div', 'display:flex;flex-direction:row;align-items:center;gap:8px');
+            head.appendChild(el('span', `display:inline-block;flex:none;width:16px;height:16px;border-radius:50%;border:1px solid #888;background:#${(slot?.color ?? 0xcccccc).toString(16).padStart(6, '0')}`));
+            head.appendChild(el('span', 'display:inline-block;flex:none;font-weight:bold;white-space:nowrap', `Slot ${i + 1}`));
+            head.appendChild(el('span', 'display:inline-block;flex:1;min-width:0;color:#666;overflow:hidden;text-overflow:ellipsis;white-space:nowrap',
+                slot ? `${slot.material}${slot.name ? ' · ' + slot.name : ''}` : ''));
+            card.appendChild(head);
+            const sel = el('select', 'display:block;width:100%;box-sizing:border-box;padding:5px;font:13px sans-serif');
+            sel.appendChild(new Option('— use the process settings —', ''));
             for (const p of fil.library) sel.appendChild(new Option(p.name, p.name));
             sel.value = fil.slots[i] || '';
             sel.onchange = () => { fil.slots[i] = sel.value; api.conf.save(); render(); };
-            row.appendChild(sel);
-            box.appendChild(row);
+            card.appendChild(sel);
             const p = fil.library.find(p => p.name === fil.slots[i]);
             if (p) {
-                box.appendChild(h('div', [
-                    `${p.type || '?'}`, `${p.temp}°C`, `bed ${p.bed}°C`,
-                    p.flow ? `flow ${p.flow}` : '', p.mvs ? `max ${p.mvs}mm³/s` : '', p.pa ? `PA ${p.pa}` : ''
-                ].filter(v => v).join(' · '), 'margin:0 0 4px 22px;color:#666;font-size:12px'));
+                card.appendChild(el('div', 'display:block;color:#555;font-size:12px', [
+                    p.type || '?', `${p.temp}°C`, `bed ${p.bed}°C`,
+                    p.flow ? `flow ${p.flow}` : '', p.mvs ? `max ${p.mvs} mm³/s` : '', p.pa ? `PA ${p.pa}` : ''
+                ].filter(v => v).join(' · ')));
             }
+            box.appendChild(card);
         }
-        const buttons = h('div', null, 'display:flex;gap:8px;margin-top:14px;flex-wrap:wrap');
-        const input = document.createElement('input');
+        const input = el('input', 'display:none');
         input.type = 'file';
         input.multiple = true;
         input.accept = '.json,.zip';
-        input.style.display = 'none';
         input.onchange = async () => { await importFilaments([...input.files]); render(); };
-        const imp = h('button', 'import Orca filament (.json / .zip)');
-        imp.onclick = () => input.click();
-        const done = h('button', 'done');
-        done.onclick = close;
-        buttons.append(imp, input, done);
+        const buttons = el('div', 'display:flex;flex-direction:row;flex-wrap:wrap;gap:8px;justify-content:flex-end');
         if (fil.library.length) {
-            const clear = h('button', 'remove all profiles');
-            clear.onclick = () => { if (confirm('remove all imported filament profiles?')) { fil.library = []; fil.slots = []; api.conf.save(); render(); } };
-            buttons.appendChild(clear);
+            buttons.appendChild(button('remove all', () => {
+                if (confirm('remove all imported filament profiles?')) { fil.library = []; fil.slots = []; api.conf.save(); render(); }
+            }));
         }
+        buttons.appendChild(button('import Orca filament (.json / .zip)', () => input.click()));
+        buttons.appendChild(button('done', close, true));
+        box.appendChild(input);
         box.appendChild(buttons);
-        box.appendChild(h('div', 'Profiles come from OrcaSlicer / Anycubic Slicer Next: user presets live in …/OrcaSlicer/user/<id>/filament/. A slot without a profile uses the process settings.', 'margin-top:10px;color:#777;font-size:12px;max-width:420px'));
+        box.appendChild(el('div', 'display:block;color:#777;font-size:12px',
+            `${fil.library.length} profile${fil.library.length === 1 ? '' : 's'} imported. OrcaSlicer user presets live in …/OrcaSlicer/user/<id>/filament/. A slot without a profile uses the process settings.`));
     };
     render();
     document.body.appendChild(wrap);
