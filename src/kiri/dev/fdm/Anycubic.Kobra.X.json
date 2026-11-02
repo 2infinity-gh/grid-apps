@@ -1,0 +1,100 @@
+{
+    "mode": "FDM",
+    "internal": 0,
+    "deviceName": "Anycubic Kobra X",
+    "bedHeight": 2.5,
+    "bedWidth": 260,
+    "bedDepth": 260,
+    "bedRound": false,
+    "bedBelt": false,
+    "maxHeight": 260,
+    "originCenter": false,
+    "fwRetract": false,
+    "extShared": true,
+    "filamentSource": "direct",
+    "deviceZMax": 12,
+    "gcodeTime": 1,
+    "gcodeFExt": "gcode",
+    "gcodeProc": "",
+    "gcodeFan": [
+        "M106 S{fan_speed}"
+    ],
+    "gcodeTrack": [
+        "M73 P{progress}"
+    ],
+    "gcodeLayer": [
+        "; AFTER_LAYER_CHANGE {layer} @ {z}mm"
+    ],
+    "gcodeFeature": [],
+    "gcodePre": [
+        "G9111 bedTemp={bed_temp} extruderTemp={temp} ; Kobra X: heat, home, level and prime",
+        "M117",
+        "G90",
+        "G21",
+        "M83 ; relative extrusion",
+        "; FLUSH_START",
+        "T{tool}",
+        "; FLUSH_END"
+    ],
+    "gcodeChange": [
+        "; FLUSH_START",
+        "T{tool} ; ACE swaps filament and purges into the chute",
+        "; FLUSH_END"
+    ],
+    "gcodePost": [
+        "M400",
+        "M140 S0 ; turn off heatbed",
+        "M104 S0 ; turn off nozzle",
+        "M107 ; turn off fan",
+        "M84 ; disable motors"
+    ],
+    "extruders": [
+        { "extFilament": 1.75, "extNozzle": 0.4, "extOffsetX": 0, "extOffsetY": 0 },
+        { "extFilament": 1.75, "extNozzle": 0.4, "extOffsetX": 0, "extOffsetY": 0 },
+        { "extFilament": 1.75, "extNozzle": 0.4, "extOffsetX": 0, "extOffsetY": 0 },
+        { "extFilament": 1.75, "extNozzle": 0.4, "extOffsetX": 0, "extOffsetY": 0 }
+    ],
+    "new": false,
+    "imageURL": "",
+    "profiles": [
+        {
+            "processName": "0.20mm Standard PETG",
+            "sliceHeight": 0.2,
+            "firstSliceHeight": 0.2,
+            "sliceShells": 2,
+            "sliceShellOrder": "in-out",
+            "sliceLineWidth": 0.42,
+            "sliceFillAngle": 45,
+            "sliceFillSparse": 0.15,
+            "sliceFillType": "grid",
+            "sliceTopLayers": 5,
+            "sliceBottomLayers": 3,
+            "sliceSupportEnable": false,
+            "firstLayerRate": 50,
+            "firstLayerFillRate": 100,
+            "firstLayerNozzleTemp": 250,
+            "firstLayerBedTemp": 70,
+            "firstLayerBrim": 0,
+            "firstLayerFanSpeed": 0,
+            "outputTemp": 240,
+            "outputBedTemp": 70,
+            "outputFeedrate": 250,
+            "outputFinishrate": 200,
+            "outputSeekrate": 300,
+            "outputShellMult": 0.95,
+            "outputFillMult": 0.95,
+            "outputSparseMult": 0.95,
+            "outputFanLayer": 3,
+            "outputFanSpeed": 180,
+            "outputRetractDist": 1.1,
+            "outputRetractSpeed": 30,
+            "outputRetractWipe": 0,
+            "outputRetractDwell": 0,
+            "outputBrimCount": 0,
+            "outputMinSpeed": 10,
+            "outputPurgeTower": 0,
+            "zHopDistance": 0.4,
+            "ranges": []
+        }
+    ]
+}

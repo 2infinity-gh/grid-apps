@@ -240,6 +240,7 @@ export const conf = {
                 bedRound: false,
                 bedBelt: false,
                 fwRetract: false,
+                extShared: false,
                 filamentSource: "direct",
                 originCenter: false,
                 deviceZMax: 0,

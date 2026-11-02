@@ -11,7 +11,7 @@ const debug = false;
 export function fdm_export(print, online, ondone, ondebug) {
     const { widgets, settings, belty, tools, firstTool } = print;
     const { bounds, controller, device, process, filter, mode } = settings;
-    const { extruders, fwRetract } = device;
+    const { extruders, fwRetract, extShared } = device;
     const { bedWidth, bedDepth, bedRound, bedBelt, maxHeight } = device;
     const { gcodeFan, gcodeLayer, gcodeTrack, gcodePause, gcodeFeature, gcodeChange } = device;
 
@@ -45,6 +45,7 @@ export function fdm_export(print, online, ondone, ondebug) {
         retracted = 0,
         axis = { X:' X', Y:' Y', Z:' Z', E:' E'},
         pos = { x:0, y:0, z:0, f:0 },
+        afterChange = false,
         lout = { x:0, y:0, z:0 },
         last = null,
         zpos = 0,
@@ -578,14 +579,19 @@ export function fdm_export(print, online, ondone, ondebug) {
         }
         if (bedTemp !== lastBedTemp) {
             // console.log({ bed_temp_change_to: bedTemp, from: lastBedTemp });
-            append(`M140 S${bedTemp} T0`);
+            append(extShared ? `M140 S${bedTemp}` : `M140 S${bedTemp} T0`);
             lastBedTemp = bedTemp;
         }
         if (nozzleTemp !== lastNozzleTemp) {
             // console.log({ temp_change_to: nozzleTemp, from: lastNozzleTemp });
-            if (t0) append(`M104 S${nozzleTemp} T0`);
-            if (t1) append(`M104 S${nozzleTemp} T1`);
-            if (!(t0 || t1)) append(`M104 S${nozzleTemp} T${tool}`);
+            if (extShared) {
+                // one shared nozzle: there is no T1 heater to address
+                append(`M104 S${nozzleTemp}`);
+            } else {
+                if (t0) append(`M104 S${nozzleTemp} T0`);
+                if (t1) append(`M104 S${nozzleTemp} T1`);
+                if (!(t0 || t1)) append(`M104 S${nozzleTemp} T${tool}`);
+            }
             lastNozzleTemp = nozzleTemp;
         }
 
@@ -650,6 +656,17 @@ export function fdm_export(print, online, ondone, ondebug) {
                     path.layer === 0 ?
                         (process.firstSliceHeight || process.sliceHeight) : path.height);
                 appendAllSub(gcodeChange ?? [ "T{tool}" ]);
+                if (extShared) {
+                    // single nozzle fed by a filament changer (e.g. Anycubic ACE):
+                    // the firmware parks the head to cut, swap and purge, so the
+                    // last known position is gone. Come back above the layer and
+                    // force the next move to emit every axis.
+                    pos.x = pos.y = NaN;
+                    pos.f = 0;
+                    pos.z = NaN;
+                    moveTo({ z: zpos + 2 }, seekMMM, "after filament change");
+                    afterChange = true;
+                }
             }
 
             // if no point in output, it's a dwell command
@@ -681,6 +698,15 @@ export function fdm_export(print, online, ondone, ondebug) {
             } else if (emit === -1) {
                 // drop display only
                 continue;
+            }
+
+            // first point after a shared-nozzle filament change: travel there
+            // above the layer, then drop to layer height before extruding
+            if (afterChange) {
+                afterChange = false;
+                moveTo({ x, y }, seekMMM);
+                moveTo({ z: zpos }, seekMMM, "back to layer height");
+                lastp = point;
             }
 
             // distance to last point for accumulation and emit calc
