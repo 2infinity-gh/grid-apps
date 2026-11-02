@@ -12,7 +12,7 @@ import { Packer } from './pack.js';
 import { space } from '../../moto/space.js';
 import { THREE } from '../../ext/three.js';
 import { Widget, newWidget } from './widget.js';
-import { choosePlate } from './plates.js';
+import { choosePlate, loadIntoPlates } from './plates.js';
 
 const V0 = new THREE.Vector3(0,0,0);
 
@@ -1043,7 +1043,7 @@ function load_files(files, group) {
                     });
             }
             } else if (is3mf) {
-                let odon = function(models) {
+                let odon = function(models, more) {
                     let msg = api.show.alert('Adding Objects');
                     for (let model of models) {
                         let widget = load_verts(group, model.faces, model.name ? `${model.name}-${name}` : name);
@@ -1051,7 +1051,7 @@ function load_files(files, group) {
                         if (model.extruder > 0) widget.anno.extruder = model.extruder - 1;
                         if (model.paint) widget.cpaintImport = { ref: model.faces.slice(0, 3), paint: model.paint };
                     }
-                    load_dec();
+                    if (!more) load_dec();
                     api.hide.alert(msg);
                     if (models.some(m => m.paint || m.extruder > 1)) {
                         // after layout/centering settles, turn imported colours into slots and paint
@@ -1066,6 +1066,12 @@ function load_files(files, group) {
                     if (plated) {
                         let plate = await choosePlate(models.plates, name);
                         if (plate === null) {
+                            load_dec();
+                            return;
+                        }
+                        if (plate === 'split') {
+                            let groups = models.plates.map(p => ({ plate: p, models: models.filter(m => m.plate === p.id) }));
+                            await loadIntoPlates(groups, m => odon(m, true));
                             load_dec();
                             return;
                         }

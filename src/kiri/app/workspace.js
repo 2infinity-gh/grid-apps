@@ -11,6 +11,7 @@ import { space as SPACE } from '../../moto/space.js';
 import { utils } from '../core/utils.js';
 import { Widget } from './widget.js';
 import { Index } from '../../data/index.js';
+import { inactivePlateIds } from './plates.js';
 
 const { o2js, js2o, ls2o, parseOpt } = utils;
 const LOC = self.location;
@@ -125,11 +126,13 @@ function save(quiet) {
         ann.url = widget.meta.url;
     });
     SDB.setItem('ws-widgets', o2js(newWidgets));
+    // objects on other build plates are parked in the saved state: keep them
+    const parked = inactivePlateIds();
     oldWidgets.forEach(wid => {
-        Widget.deleteFromState(wid);
+        if (!parked.includes(wid)) Widget.deleteFromState(wid);
     });
     // eliminate dangling saved widgets
-    FILES.deleteFilter(key => newWidgets.indexOf(key.substring(8)) < 0, "ws-save-", "ws-savf");
+    FILES.deleteFilter(key => newWidgets.indexOf(key.substring(8)) < 0 && !parked.includes(key.substring(8)), "ws-save-", "ws-savf");
     if (!quiet) {
         api.show.alert("workspace saved", 1);
     }

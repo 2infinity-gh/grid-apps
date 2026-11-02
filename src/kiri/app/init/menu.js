@@ -126,7 +126,7 @@ function content(actions) {
                     menuItem(actions, { id: 'file-recent', lk: 'recent', text: 'recent', iconClass: 'fas fa-list' }),
                     menuItem(actions, {
                         id: 'file-import', lk: 'import', text: 'import', iconClass: 'fas fa-file-upload', children:
-                            input({ id: 'load-file', type: 'file', name: 'loadme', style: 'display:none', accept: '.km,.kmz,.stl,.obj,.svg,.dxf,.png,.jpg,.jpeg,.gcode,.nc' })
+                            input({ id: 'load-file', type: 'file', name: 'loadme', style: 'display:none', accept: '.km,.kmz,.stl,.obj,.3mf,.svg,.dxf,.png,.jpg,.jpeg,.gcode,.nc' })
                     }),
                     hr(),
                     menuItem(actions, { id: 'shape-box', text: 'add box', iconClass: 'fas fa-cube' }),

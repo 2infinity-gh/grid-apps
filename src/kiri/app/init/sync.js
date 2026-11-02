@@ -15,6 +15,7 @@ import { shapes } from '../shapes.js';
 import { colorPaint } from '../color-paint.js';
 import { filaments } from '../filaments.js';
 import { processImport } from '../process-import.js';
+import { plates } from '../plates.js';
 
 const { SETUP, LOCAL } = api.const;
 const { catalog, client, platform, selection, stats, ui } = api;
@@ -359,6 +360,7 @@ function setup_keybd_nav() {
     $('file-recent').onclick = () => { api.modal.show('files') };
     $('file-import').onclick = (ev) => { api.event.import(ev); };
     colorPaint.init();
+    plates.init();
     $('filament-profiles').onclick = (ev) => { ev.stopPropagation(); filaments.show() };
     $('set-filaments').onclick = (ev) => { ev.stopPropagation(); filaments.show() };
     $('set-orca-process').onclick = (ev) => { ev.stopPropagation(); processImport.pick() };
