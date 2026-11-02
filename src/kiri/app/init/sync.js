@@ -11,6 +11,7 @@ import { settingsOps } from '../conf/settings.js';
 import { space } from '../../../moto/space.js';
 import { VIEWS } from '../consts.js';
 import * as view_tools from '../face-tool.js';
+import { shapes } from '../shapes.js';
 
 const { SETUP, LOCAL } = api.const;
 const { catalog, client, platform, selection, stats, ui } = api;
@@ -354,6 +355,9 @@ function setup_keybd_nav() {
     $('file-new').onclick = (ev) => { ev.stopPropagation(); settingsOps.new_workspace() };
     $('file-recent').onclick = () => { api.modal.show('files') };
     $('file-import').onclick = (ev) => { api.event.import(ev); };
+    for (let type of shapes.types) {
+        $(`shape-${type}`).onclick = (ev) => { ev.stopPropagation(); shapes.add(type) };
+    }
     $('view-top').onclick = space.view.top;
     $('view-home').onclick = space.view.home;
 

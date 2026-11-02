@@ -129,6 +129,11 @@ function content(actions) {
                             input({ id: 'load-file', type: 'file', name: 'loadme', style: 'display:none', accept: '.km,.kmz,.stl,.obj,.svg,.dxf,.png,.jpg,.jpeg,.gcode,.nc' })
                     }),
                     hr(),
+                    menuItem(actions, { id: 'shape-box', text: 'add box', iconClass: 'fas fa-cube' }),
+                    menuItem(actions, { id: 'shape-cylinder', text: 'add cylinder', iconClass: 'fas fa-database' }),
+                    menuItem(actions, { id: 'shape-cone', text: 'add cone', iconClass: 'fas fa-play fa-rotate-270' }),
+                    menuItem(actions, { id: 'shape-sphere', text: 'add sphere', iconClass: 'fas fa-circle' }),
+                    hr(),
                     menuItem(actions, { id: 'mesh-export-obj', lk: 'export-obj', text: 'save as OBJ', iconClass: 'fas fa-dice-d20' }),
                     menuItem(actions, { id: 'mesh-export-stl', lk: 'export-stl', text: 'save as  STL', iconClass: 'fas fa-dice-d20' }),
                     hr(),
