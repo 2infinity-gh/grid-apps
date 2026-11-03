@@ -9,6 +9,7 @@ import { slotInfo, onSlots } from './slots.js';
 import { colorSchemeRegistry } from './color/schemes.js';
 import * as faceTool from './face-tool.js';
 import { space } from '../../moto/space.js';
+import { rotateGizmo } from './rotate-gizmo.js';
 
 const DEG = Math.PI / 180;
 let tool = 'move';
@@ -64,6 +65,7 @@ function setTool(next) {
     if (tool === 'paint' && next !== 'paint') colorPaint.done();
     if (tool === 'scale' && next !== 'scale') hideKiriPanel('panel-scale');
     if (tool === 'flat' && next !== 'flat') faceTool.endIt?.();
+    if (tool === 'rotate' && next !== 'rotate') rotateGizmo.stop();
     tool = next;
     space.cameraOnly(next === 'camera');
     // enter the new one
@@ -75,6 +77,8 @@ function setTool(next) {
         faceTool.startLayFlat();
     } else if (next === 'paint') {
         colorPaint.start(paintSlot, { erase });
+    } else if (next === 'rotate') {
+        rotateGizmo.start();
     }
     render();
 }
@@ -180,6 +184,8 @@ function renderPanel() {
 
     if (tool === 'rotate') {
         title('Rotate selection');
+        panel.appendChild(el('div', 'display:block;color:#777;font-size:11px',
+            'drag a ring (red X, green Y, blue Z) in 5° steps, shift for 1°'));
         for (const [axis, label] of [ ['z', 'Z'], ['x', 'X'], ['y', 'Y'] ]) {
             const r = el('div', 'display:flex;flex-direction:row;gap:4px;align-items:center;flex-wrap:nowrap');
             r.appendChild(el('span', 'display:inline-block;width:18px;font-weight:bold', label));
@@ -251,6 +257,10 @@ export function initToolbar() {
         if (!state && tool === 'paint') { tool = 'move'; render(); }
     });
     onSlots(() => render());
+    // rotation rings follow the selection
+    for (const ev of [ 'widget.select', 'widget.deselect', 'selection.move', 'selection.rotate', 'selection.scale', 'widget.delete' ]) {
+        api.event.on(ev, () => rotateGizmo.refresh());
+    }
     // keep the move panel's selection and position current
     for (const ev of [ 'widget.select', 'widget.deselect', 'selection.move', 'widget.delete' ]) {
         api.event.on(ev, () => { if (tool === 'move' && movePanel) render(); });
