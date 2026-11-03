@@ -4,6 +4,7 @@ import { api } from './api.js';
 import { local as SDB } from '../../data/local.js';
 import { Widget } from './widget.js';
 import { platform } from './platform.js';
+import { printerSent } from './printer-link.js';
 
 // ask which plate of a project to load: resolves a plate id, 'all', or null (cancelled)
 export function choosePlate(plates, file) {
@@ -165,6 +166,7 @@ export async function sendAllPlates() {
     if (!confirm(`slice all ${state.plates.length} plates and send each G-code to the printer?\n(nothing starts printing)`)) return;
     const back = state.active;
     const sent = [];
+    const uploaded = [];
     for (let i = 0; i < state.plates.length; i++) {
         await switchPlate(i);
         if (!platformWidgets().length) continue;
@@ -179,6 +181,7 @@ export async function sendAllPlates() {
             form.append('file', new Blob([ gcode ], { type: 'text/plain' }), filename);
             const res = await fetch('/printer-api/server/files/upload', { method: 'POST', body: form, credentials: 'same-origin' });
             sent.push(`${filename}: ${res.ok ? 'sent' : 'failed ' + res.status}`);
+            if (res.ok) uploaded.push(filename);
         } catch (e) {
             sent.push(`${state.plates[i].name}: ${e.message || e}`);
         } finally {
@@ -187,6 +190,7 @@ export async function sendAllPlates() {
     }
     await switchPlate(back);
     api.show.alert(sent.join(' · ') || 'no plates with objects', 10);
+    if (uploaded.length) printerSent(uploaded, false);
 }
 
 export function plateState() {

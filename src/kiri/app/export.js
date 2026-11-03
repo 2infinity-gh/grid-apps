@@ -9,6 +9,7 @@ import { MODES } from './consts.js';
 import { LASER as laser_driver } from '../mode/laser/init-work.js';
 import { SLA as sla_client } from '../mode/sla/app/init-ui.js';
 import { hash } from '../../ext/md5.js';
+import { printerSent } from './printer-link.js';
 
 /**
  * Sequential print counter for generating unique export filenames.
@@ -241,6 +242,8 @@ function exportGCodeDialog(gcode, sections, info, names) {
     }
 
     function sendToHost(start) {
+        // the "send" button passes its click event here: only an explicit true starts a print
+        start = start === true;
         if (!(octo_host && octo_apik && octo_type)) return;
 
         let form = new FormData(),
@@ -279,14 +282,15 @@ function exportGCodeDialog(gcode, sections, info, names) {
                 api.stats.add(`ua_${api.mode.get_lower()}_print_send_${status}`);
                 if (status >= 200 && status < 300) {
                     api.modal.hide();
+                    printerSent([ filename ], start && type === 'moonraker');
                 } else {
                     api.show.alert("send error\nstatus: "+status+"\nmessage: "+ajax.responseText);
                 }
                 api.show.progress(0);
                 if (start && type === 'moonraker') {
                     const headers = { 'Content-Type': 'application/json' };
-                    if (proxy) hdr['X-Host'] = proxy;
-                    if (apik) hdr['X-Api-Key'] = apik;
+                    if (proxy) headers['X-Host'] = proxy;
+                    if (apik) headers['X-Api-Key'] = apik;
                     fetch(`${host}/printer/print/start`, {
                         method: 'POST',
                         headers,
