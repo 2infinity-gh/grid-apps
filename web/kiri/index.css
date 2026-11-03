@@ -854,6 +854,21 @@ details[open] summary::after {
     transform: translateX(calc(-100% + 20px));
     transition: transform 0.15s ease-in-out, border 0.15s ease-in-out;
 }
+/* the right panel's container runs the full height but its content is short:
+   let clicks / touches below the content reach the 3D view */
+#panel-right {
+    pointer-events: none !important;
+}
+#panel-right > * {
+    pointer-events: auto;
+}
+/* collapsed panel: its empty container must not swallow clicks/taps on the 3D view */
+.slideshow #panel-left {
+    pointer-events: none;
+}
+.slideshow #panel-slide {
+    pointer-events: auto;
+}
 .slideshow #panel-slide:hover {
     padding-right: 0px;
     transition: transform 0.15s ease-in-out, border 0.15s ease-in-out;

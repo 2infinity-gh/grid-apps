@@ -8,15 +8,19 @@ import { colorPaint } from './color-paint.js';
 import { slotInfo, onSlots } from './slots.js';
 import { colorSchemeRegistry } from './color/schemes.js';
 import * as faceTool from './face-tool.js';
+import { space } from '../../moto/space.js';
 
 const DEG = Math.PI / 180;
 let tool = 'move';
 let paintSlot = 0;
 let erase = false;
+let movePanel = false;  // the move tool's nudge panel (tap the move tool again)
+let step = 10;
 let bar, panel;
 
 const TOOLS = [
-    { id: 'move',   icon: 'fa-arrows-up-down-left-right', title: 'move / select (esc)' },
+    { id: 'camera', icon: 'fa-video',                     title: 'camera: dragging always turns the view (tap still selects)' },
+    { id: 'move',   icon: 'fa-arrows-up-down-left-right', title: 'move / select (esc) · tap again for position and nudge buttons' },
     { id: 'rotate', icon: 'fa-rotate',                    title: 'rotate' },
     { id: 'scale',  icon: 'fa-expand',                    title: 'scale / size' },
     { id: 'flat',   icon: 'fa-angles-down',               title: 'lay flat: click a face to put it on the bed' },
@@ -61,6 +65,7 @@ function setTool(next) {
     if (tool === 'scale' && next !== 'scale') hideKiriPanel('panel-scale');
     if (tool === 'flat' && next !== 'flat') faceTool.endIt?.();
     tool = next;
+    space.cameraOnly(next === 'camera');
     // enter the new one
     if (next === 'scale') {
         if (!needSelection()) return setTool('move');
@@ -76,7 +81,7 @@ function setTool(next) {
 
 function renderPanel() {
     panel.innerHTML = '';
-    panel.style.display = (tool === 'paint' || tool === 'rotate') ? 'flex' : 'none';
+    panel.style.display = (tool === 'paint' || tool === 'rotate' || (tool === 'move' && movePanel)) ? 'flex' : 'none';
     const title = text => panel.appendChild(el('div', 'display:block;font-weight:bold;margin-bottom:2px', text));
     const button = (text, onclick, css = '') => {
         const b = el('button', 'display:inline-block;padding:4px 8px;border:1px solid #bbb;border-radius:5px;background:#f6f6f6;color:#222;cursor:pointer;font:12px sans-serif;' + css, text);
@@ -122,6 +127,57 @@ function renderPanel() {
             'drag over the model to paint · [ ] pen size · shift erases · esc back to move'));
     }
 
+    if (tool === 'move' && movePanel) {
+        const sel = api.selection.widgets();
+        const dev = api.conf.get().device;
+        title(sel.length ? `Move selection (${sel.length})` : 'Move — select an object first');
+        const steps = row();
+        steps.appendChild(el('span', 'display:inline-block;width:40px', 'step'));
+        for (const s of [ 1, 10 ]) {
+            steps.appendChild(button(`${s} mm`, () => { step = s; render(); },
+                s === step ? 'background:#3b82f6;color:#fff;border-color:#3b82f6' : ''));
+        }
+        panel.appendChild(steps);
+        // arrows as seen from the front of the printer: up = towards the back (+Y)
+        const nudge = (dx, dy) => { if (needSelection()) { api.selection.move(dx * step, dy * step, 0); render(); } };
+        const pad = el('div', 'display:grid;grid-template-columns:repeat(3,44px);grid-template-rows:repeat(3,40px);gap:4px;justify-content:center');
+        const cell = (text, fn, title) => { const b = button(text, fn, 'width:44px;height:40px;font-size:18px;padding:0'); b.title = title; return b; };
+        pad.append(el('span'), cell('↑', () => nudge(0, 1), 'towards the back'), el('span'),
+            cell('←', () => nudge(-1, 0), 'left'), cell('⊙', () => {
+                if (!needSelection()) return;
+                // centre the selection on the bed
+                const ps = sel.map(w => w.track.pos);
+                api.selection.move(-ps.reduce((a, p) => a + p.x, 0) / ps.length, -ps.reduce((a, p) => a + p.y, 0) / ps.length, 0);
+                render();
+            }, 'centre on the bed'), cell('→', () => nudge(1, 0), 'right'),
+            el('span'), cell('↓', () => nudge(0, -1), 'towards the front'), el('span'));
+        panel.appendChild(pad);
+        if (sel.length === 1) {
+            // position of the object's centre, measured from the front-left corner of the bed
+            const pos = sel[0].track.pos;
+            const fields = row();
+            for (const [axis, size] of [ ['x', dev.bedWidth], ['y', dev.bedDepth] ]) {
+                fields.appendChild(el('span', 'display:inline-block;width:14px;font-weight:bold', axis.toUpperCase()));
+                const input = el('input', 'display:inline-block;width:70px;padding:3px;font:12px sans-serif');
+                input.type = 'number';
+                input.step = '0.5';
+                input.value = (pos[axis] + size / 2).toFixed(1);
+                input.onchange = () => {
+                    const v = parseFloat(input.value);
+                    if (isNaN(v)) return;
+                    const d = v - size / 2 - sel[0].track.pos[axis];
+                    api.selection.move(axis === 'x' ? d : 0, axis === 'y' ? d : 0, 0);
+                    render();
+                };
+                fields.appendChild(input);
+            }
+            fields.appendChild(el('span', 'color:#777', 'mm'));
+            panel.appendChild(fields);
+        }
+        panel.appendChild(el('div', 'display:block;color:#777;font-size:11px',
+            'tip: on a touch screen, drag a selected object with one finger'));
+    }
+
     if (tool === 'rotate') {
         title('Rotate selection');
         for (const [axis, label] of [ ['z', 'Z'], ['x', 'X'], ['y', 'Y'] ]) {
@@ -152,10 +208,30 @@ function render() {
             `border:1px solid ${active ? '#3b82f6' : '#ccc'};background:${active ? '#3b82f6' : '#f7f7f7'};color:${active ? '#fff' : '#333'};cursor:pointer`);
         b.title = t.title;
         b.appendChild(el('i', 'font-size:15px', '')).className = `fas ${t.icon}`;
-        b.onclick = ev => { ev.stopPropagation(); setTool(t.id === tool && t.id !== 'move' ? 'move' : t.id); };
+        b.onclick = ev => {
+            ev.stopPropagation();
+            if (t.id === 'move') {
+                // tapping move again shows / hides the position and nudge panel
+                movePanel = tool === 'move' ? !movePanel : movePanel;
+                setTool('move');
+            } else {
+                setTool(t.id === tool ? 'move' : t.id);
+            }
+        };
         bar.appendChild(b);
     }
     renderPanel();
+}
+
+// desktop: top left next to the settings panel; narrow screens: bottom left, panel above it
+function layout() {
+    const narrow = window.innerWidth < 760;
+    Object.assign(bar.style, narrow ?
+        { top: 'auto', bottom: '12px', left: '8px' } :
+        { top: '44px', bottom: 'auto', left: '222px' });
+    Object.assign(panel.style, narrow ?
+        { top: 'auto', bottom: '58px', left: '8px', width: 'min(300px, calc(100vw - 16px))', maxHeight: '60vh', overflowY: 'auto' } :
+        { top: '86px', bottom: 'auto', left: '222px', width: '300px', maxHeight: 'none' });
 }
 
 export function initToolbar() {
@@ -167,12 +243,18 @@ export function initToolbar() {
     panel.id = 'tool-panel';
     panel.onclick = ev => ev.stopPropagation();
     document.body.append(bar, panel);
+    layout();
+    window.addEventListener('resize', layout);
 
     // painting can stop elsewhere (esc): fall back to the move tool
     colorPaint.onChange(state => {
         if (!state && tool === 'paint') { tool = 'move'; render(); }
     });
     onSlots(() => render());
+    // keep the move panel's selection and position current
+    for (const ev of [ 'widget.select', 'widget.deselect', 'selection.move', 'widget.delete' ]) {
+        api.event.on(ev, () => { if (tool === 'move' && movePanel) render(); });
+    }
     // lay flat ends by itself after one click; scale panel may be closed from Kiri
     api.event.on('selection.rotate', () => { if (tool === 'flat') setTool('move'); });
     api.event.on('mode.set', mode => {

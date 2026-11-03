@@ -1146,7 +1146,7 @@ function onMouseDown(event) {
                         selectInt = int[i];
                     }
                 }
-                if (trackInt && selectInt) {
+                if (trackInt && selectInt && !cameraOnly) {
                     mouseDragPoint = trackInt.point.clone();
                     mouseDragStart = mouseDragPoint;
                     viewControl.enabled = false;
@@ -1287,6 +1287,67 @@ function onMouseMove(event) {
         }
     }
     mouse = eventToNDC(event);
+}
+
+/**
+ * One-finger touch on a selected object drags it (as a mouse drag would);
+ * anywhere else the touch goes to the camera controls as before.
+ * Registered in the capture phase so it runs before the orbit controls.
+ */
+let touchDragging = false;
+let cameraOnly = false;   // camera tool: drags always turn the view, never move objects
+
+function touchAsMouse(event, touch) {
+    return {
+        clientX: touch.clientX,
+        clientY: touch.clientY,
+        button: 0,
+        buttons: 1,
+        target: renderer.domElement,
+        shiftKey: false, ctrlKey: false, metaKey: false, altKey: false,
+        // only cancel the browser's tap-to-click when we take over the gesture
+        preventDefault() { }
+    };
+}
+
+function aimAt(fake) {
+    const ndc = eventToNDC(fake);
+    raycaster.setFromCamera(new THREE.Vector2(ndc.x, ndc.y), camera);
+    mouse = ndc;
+}
+
+function onTouchStart(event) {
+    if (event.touches.length !== 1) return;
+    const fake = touchAsMouse(event, event.touches[0]);
+    aimAt(fake);
+    onMouseDown(fake);
+    if (!viewControl.enabled) {
+        // finger landed on a selected object: we own this gesture
+        touchDragging = true;
+        event.stopImmediatePropagation();
+        event.preventDefault();
+    } else {
+        mouseStart = null;
+    }
+}
+
+function onTouchMove(event) {
+    if (!touchDragging) return;
+    event.stopImmediatePropagation();
+    event.preventDefault();
+    const fake = touchAsMouse(event, event.touches[0]);
+    onMouseMove(fake);
+}
+
+function onTouchEnd(event) {
+    if (!touchDragging) return;
+    touchDragging = false;
+    event.stopImmediatePropagation();
+    event.preventDefault();
+    const fake = touchAsMouse(event, event.changedTouches[0]);
+    fake.buttons = 0;
+    aimAt(fake);
+    onMouseUp(fake);
 }
 
 function isVoidUiEventTarget(target) {
@@ -1550,6 +1611,12 @@ let Space = {
         front:  {left: 0,    up: PI2, panX, panY, panZ},
         right:  {left: PI2,  up: PI2, panX, panY, panZ},
         left:   {left: -PI2, up: PI2, panX, panY, panZ},
+    },
+
+    // true: dragging always turns the camera (objects can still be selected by a click / tap)
+    cameraOnly(on) {
+        if (on !== undefined) cameraOnly = !!on;
+        return cameraOnly;
     },
 
     view: {
@@ -2120,6 +2187,10 @@ let Space = {
         if (showSkyGrid) {
             skygrid.material.wireframe = true;
             SCENE.add(skygrid);
+        }
+
+        for (const [type, fn] of [ ['touchstart', onTouchStart], ['touchmove', onTouchMove], ['touchend', onTouchEnd], ['touchcancel', onTouchEnd] ]) {
+            renderer.domElement.addEventListener(type, fn, { capture: true, passive: false });
         }
 
         addEventHandlers(WIN, [
