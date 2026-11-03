@@ -29,8 +29,10 @@ function build() {
     if (!box) return;
     const center = box.getCenter(new THREE.Vector3());
     const size = box.getSize(new THREE.Vector3());
-    const radius = Math.max(size.x, size.y, size.z) * 0.6 + 4;
-    const tube = Math.max(0.5, radius * 0.025);
+    // well outside the selection's bounding sphere: the object stays in view
+    // and never pokes through a ring, whichever way it is turned
+    const radius = size.length() / 2 * 1.3 + 10;
+    const tube = Math.max(0.5, radius * 0.018);
     const group = new THREE.Group();
     group.position.copy(center);
     const rings = [], planes = {};
