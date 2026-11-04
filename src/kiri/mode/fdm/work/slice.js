@@ -593,9 +593,10 @@ export function sliceOne(settings, widget, onupdate, ondone) {
 
         // tree supports: branches grown down from the overhangs (tree-support.js)
         // instead of the shadow projected straight down
-        let tree = process.sliceSupportType === 'tree' || (process.sliceSupportTree && !manual);
+        let organic = process.sliceSupportType === 'organic';
+        let tree = organic || process.sliceSupportType === 'tree' || (process.sliceSupportTree && !manual);
         if (tree) {
-            treeSupports({ stack, process, lineWidth, newPoint, newPolygon, POLY,
+            treeSupports({ stack, process, lineWidth, newPoint, newPolygon, POLY, organic,
                 progress: p => trackupdate(p, div[1].lo, div[1].hi, "tree support") });
         }
 
@@ -834,9 +835,32 @@ export function sliceOne(settings, widget, onupdate, ondone) {
         profileStart("support-fill");
         let promises = false && isConcurrent ? [] : undefined;
         let div = divide(plo, phi, promises ? [ 0.8, 0.2 ] : [ 1 ]);
+        // interface: the top layers of the support, right under the part (after
+        // the top z distance), filled denser so the part rests on a flat surface
+        let gapLayers = Math.ceil((process.sliceSupportGapTop ?? (process.sliceSupportGap ? sliceHeight : 0)) / sliceHeight - 0.01);
         forSlices(div[0].lo, div[0].hi, slice => {
             let params = slice.params || process;
             let density = params.sliceSupportDensity;
+            let iface = params.sliceSupportInterface ?? 0;
+            if (iface > 0 && slice.supports?.length) {
+                let above = [];
+                for (let k = 0, s = slice.up; k < gapLayers + iface && s; k++, s = s.up) above.push(...s.topPolys());
+                if (above.length) {
+                    let part = POLY.union(above, 0, true);
+                    let top = POLY.trimTo(slice.supports, part, { minArea: lineWidth * lineWidth });
+                    if (top.length) {
+                        let rest = [];
+                        POLY.subtract(slice.supports, part, rest, null, slice.z, lineWidth * lineWidth);
+                        let outline = process.sliceSupportOutline !== false;
+                        supportPolyFill({ angle: process.sliceSupportFill, density: params.sliceSupportInterfaceDensity ?? 0.5,
+                            isBelt, lineWidth, outline, polys: top, promises, z: slice.z });
+                        supportPolyFill({ angle: process.sliceSupportFill, density,
+                            isBelt, lineWidth, outline, polys: rest, promises, z: slice.z });
+                        slice.supports = [ ...top, ...rest ];
+                        return;
+                    }
+                }
+            }
             layerSupportFill({
                 angle: process.sliceSupportFill,
                 density,

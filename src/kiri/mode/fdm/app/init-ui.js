@@ -53,6 +53,8 @@ export function init() {
         "sliceSupportOffset": LANG.sp_offs_s,
         "sliceSupportGapTop": LANG.sp_gtop_s,
         "sliceSupportGapBottom": LANG.sp_gbot_s,
+        "sliceSupportInterface": LANG.sp_ifly_s,
+        "sliceSupportInterfaceDensity": LANG.sp_ifdn_s,
         "sliceLayerStart": LANG.sl_strt_s,
         "firstLayerBrim": LANG.fl_brim_s,
         "firstLayerBrimIn": LANG.fl_brin_s,

@@ -352,6 +352,9 @@ export const conf = {
                 // vertical gaps in mm between support and part (Orca's top/bottom z distance)
                 sliceSupportGapTop: 0.2,
                 sliceSupportGapBottom: 0.2,
+                // dense top layers of the support under the part
+                sliceSupportInterface: 2,
+                sliceSupportInterfaceDensity: 0.5,
                 // tree supports (support type "tree")
                 sliceSupportTreeAngle: 40,
                 sliceSupportTreeTip: 1.2,

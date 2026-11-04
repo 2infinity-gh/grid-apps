@@ -66,7 +66,7 @@ function isNotBelt() {
 }
 
 function isTree() {
-    return api.conf.proc().sliceSupportType === 'tree';
+    return [ 'tree', 'organic' ].includes(api.conf.proc().sliceSupportType);
 }
 
 function notFwRetract() {
@@ -127,6 +127,8 @@ export function menu() {
     separator:           newBlank({ class:"set-sep", driven }),
     sliceSupportOutline: newBoolean(LANG.sp_outl_s, onBooleanClick, {title:LANG.sp_outl_l, xshow: () => !isTree() }),
     sliceSupportGapTop:  newInput(LANG.sp_gtop_s, {title:LANG.sp_gtop_l, convert:toFloat, bound:bound(0.0,5.0)}),
+    sliceSupportInterface: newInput(LANG.sp_ifly_s, {title:LANG.sp_ifly_l, convert:toInt, bound:bound(0,20)}),
+    sliceSupportInterfaceDensity: newInput(LANG.sp_ifdn_s, {title:LANG.sp_ifdn_l, convert:toFloat, bound:bound(0.05,1.0)}),
     sliceSupportGapBottom: newInput(LANG.sp_gbot_s, {title:LANG.sp_gbot_l, convert:toFloat, bound:bound(0.0,5.0)}),
     sliceSupportTreeAngle:   newInput(LANG.sp_tran_s, {title:LANG.sp_tran_l, convert:toFloat, bound:bound(5.0,75.0), show:isTree}),
     sliceSupportTreeTip:     newInput(LANG.sp_trtp_s, {title:LANG.sp_trtp_l, convert:toFloat, bound:bound(0.4,10.0), show:isTree}),

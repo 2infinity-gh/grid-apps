@@ -12,6 +12,7 @@ const LISTS = {
         { name: "disabled" },
         { name: "automatic" },
         { name: "tree" },
+        { name: "organic" },
         { name: "manual" },
     ],
     start: [

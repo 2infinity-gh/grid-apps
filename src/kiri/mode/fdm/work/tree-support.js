@@ -13,6 +13,10 @@
  * - tips start at the tip diameter, reach the branch diameter within a few
  *   layers, and then widen with the diameter angle on the way down
  *
+ * Organic (support type "organic") smooths each branch's path afterwards, so
+ * branches bend in curves and flow into each other where they merge, and
+ * lets tips drop straight down for a few layers before they lean.
+ *
  * Each layer's support is the union of its branch circles in slice.supports;
  * the caller trims it with the part (xy offset, top/bottom z distance) and
  * fills it like any other support.
@@ -20,6 +24,8 @@
 
 const DEG = Math.PI / 180;
 const TIP_LAYERS = 6;   // layers for a tip to grow to the branch diameter
+const RAMP_LAYERS = 5;  // organic: layers over which a tip starts to lean
+const SMOOTH_PASSES = 30;
 
 // ray casting on a polygon's points (holes in poly.inner)
 function insideRing(points, x, y) {
@@ -102,7 +108,7 @@ function contactPoints(polys, spacing) {
     return out;
 }
 
-export function treeSupports({ stack, process, lineWidth, newPoint, newPolygon, POLY, progress }) {
+export function treeSupports({ stack, process, lineWidth, newPoint, newPolygon, POLY, progress, organic }) {
     const angle = Math.min(75, Math.max(5, process.sliceSupportTreeAngle ?? 40));
     const tipR = Math.max(lineWidth, process.sliceSupportTreeTip ?? 1.2) / 2;
     const branchR = Math.max(tipR, (process.sliceSupportTreeBranch ?? 3) / 2);
@@ -114,39 +120,40 @@ export function treeSupports({ stack, process, lineWidth, newPoint, newPolygon, 
     const layers = stack.slice().sort((a, b) => b.z - a.z);   // top down
     let nodes = [];
     let count = 0;
+    // per layer: { node, x, y, r } of every branch, drawn after (organic) smoothing
+    const placed = layers.map(() => []);
+    const models = [];
 
     for (let i = 0; i < layers.length; i++) {
         const slice = layers[i];
         const below = layers[i + 1];
         const dz = below ? slice.z - below.z : slice.z;
         const step = dz * Math.tan(angle * DEG);
-        const model = obstacle(slice.clips);
+        models[i] = models[i] || obstacle(slice.clips);
 
         // 1. new tips under this layer's overhangs, unless a branch is already there
         for (const p of contactPoints(slice.shadow, spacing)) {
             if (nodes.some(n => Math.hypot(n.x - p.x, n.y - p.y) < Math.max(n.r, spacing * 0.6))) continue;
-            nodes.push({ x: p.x, y: p.y, r: tipR, age: 0 });
+            nodes.push({ x: p.x, y: p.y, r: tipR, age: 0, path: [] });
         }
 
-        // 2. this layer's circles
-        if (nodes.length) {
-            const circles = nodes.map(n => {
-                const segs = Math.max(8, Math.min(32, Math.round(2 * Math.PI * n.r / 0.6)));
-                return newPolygon().centerCircle(newPoint(n.x, n.y, slice.z), n.r, segs, true);
-            });
-            const union = POLY.union(circles, minArea, true);
-            slice.supports = POLY.setZ(union, slice.z);
+        // 2. where each branch is on this layer
+        for (const n of nodes) {
+            const at = { node: n, layer: i, x: n.x, y: n.y, r: n.r };
+            n.path.push(at);
+            placed[i].push(at);
         }
         if (!below) break;
 
         // 3. move the branches for the layer below: toward a neighbour, away from the model
-        const model2 = obstacle(below.clips);
+        const model2 = models[i + 1] = obstacle(below.clips);
         const clear = n => {
             const hit = model2.probe(n.x, n.y, n.r + margin + step);
             return !hit.inside && hit.dist >= n.r + margin;
         };
         for (const n of nodes) {
-            let budget = step;
+            // organic tips drop straight first, then lean more and more
+            let budget = organic ? step * Math.min(1, (n.age + 1) / RAMP_LAYERS) : step;
             // keep clear of the model below
             const hit = model2.probe(n.x, n.y, n.r + margin + step);
             if (hit.inside || hit.dist < n.r + margin) {
@@ -192,6 +199,7 @@ export function treeSupports({ stack, process, lineWidth, newPoint, newPolygon, 
                     n.r = Math.max(n.r, m.r, Math.sqrt(wn + wm) * 0.8);
                     n.age = Math.max(n.age, m.age);
                     m.gone = true;
+                    m.into = n;
                 }
             }
         }
@@ -202,6 +210,48 @@ export function treeSupports({ stack, process, lineWidth, newPoint, newPolygon, 
             n.age++;
             n.r = n.r < branchR ? Math.min(branchR, n.r + (branchR - tipR) / TIP_LAYERS) : n.r + dz * grow;
         }
-        if (progress) progress(++count / layers.length);
+        if (progress) progress(++count / layers.length * (organic ? 0.7 : 1));
+    }
+
+    if (organic) smooth(placed, models, margin);
+
+    // this layer's support: the union of its branch circles
+    layers.forEach((slice, i) => {
+        if (!placed[i].length) return;
+        const circles = placed[i].map(n => {
+            const segs = Math.max(8, Math.min(32, Math.round(2 * Math.PI * n.r / 0.6)));
+            return newPolygon().centerCircle(newPoint(n.x, n.y, slice.z), n.r, segs, true);
+        });
+        slice.supports = POLY.setZ(POLY.union(circles, minArea, true), slice.z);
+    });
+}
+
+// organic: relax every branch's path (each point toward the mean of its
+// neighbours above and below), keeping tips and feet in place, then undo any
+// point that the smoothing moved into the model
+function smooth(placed, models, margin) {
+    const all = placed.flat();
+    // the point that follows each one on the layer below: the same branch,
+    // or the branch it merged into
+    for (const p of all) {
+        const n = p.node;
+        const k = n.path.indexOf(p);
+        p.up = k > 0 ? n.path[k - 1] : null;
+        p.down = n.path[k + 1] || (n.into ? n.into.path.find(q => q.layer === p.layer + 1) : null) || null;
+        p.ox = p.x; p.oy = p.y;
+    }
+    for (let pass = 0; pass < SMOOTH_PASSES; pass++) {
+        for (const p of all) {
+            if (!p.up || !p.down) { p.nx = p.x; p.ny = p.y; continue; }
+            p.nx = (p.up.x + 2 * p.x + p.down.x) / 4;
+            p.ny = (p.up.y + 2 * p.y + p.down.y) / 4;
+        }
+        for (const p of all) { p.x = p.nx; p.y = p.ny; }
+    }
+    for (const p of all) {
+        const model = models[p.layer];
+        if (!model) continue;
+        const hit = model.probe(p.x, p.y, p.r + margin);
+        if (hit.inside || hit.dist < p.r + margin) { p.x = p.ox; p.y = p.oy; }
     }
 }
