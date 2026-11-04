@@ -17,6 +17,7 @@ export function loadSlots() {
                 color: parseInt((s.color_hex || '').replace('#', ''), 16),
                 material: s.material || '',
                 name: s.filament_name || '',
+                vendor: s.filament_vendor || '',
                 loaded: s.status === 'loaded'
             }));
             listeners.forEach(fn => fn(slots));

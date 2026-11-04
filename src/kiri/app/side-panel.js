@@ -173,6 +173,7 @@ export function initSidePanel() {
             input.onchange = () => filaments.import([...input.files]);
             input.click();
         }),
+        iconButton('fa-arrows-rotate', 'from printer: choose a profile per slot for the loaded filament (material, brand, colour)', () => filaments.fromPrinter()),
         iconButton('fa-list', 'all filament profiles', () => filaments.show()));
     slotList = el('div', 'display:flex;flex-direction:column;gap:3px');
     filament.appendChild(slotList);

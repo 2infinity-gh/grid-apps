@@ -11,7 +11,7 @@
 
 import { JSZip } from '../../ext/jszip-esm.js';
 import { api } from './api.js';
-import { slotInfo, slotLabel, onSlots } from './slots.js';
+import { slotInfo, slotLabel, onSlots, loadSlots } from './slots.js';
 
 // fallbacks when a preset (or what it inherits) does not set a value
 const TYPE_DEFAULTS = {
@@ -338,6 +338,70 @@ export function editFilament(name, slot) {
     document.body.appendChild(wrap);
 }
 
+// how well a library profile fits what the printer reports for a slot
+function matchScore(profile, slot) {
+    const name = profile.name.toLowerCase();
+    if (slot.name && name === slot.name.toLowerCase()) return 100;
+    const type = guessType(slot.material) || slot.material.toUpperCase();
+    const ptype = guessType(profile.type) || String(profile.type || '').toUpperCase();
+    if (!type || ptype !== type) return 0;
+    let score = 10;
+    if (slot.vendor && name.includes(slot.vendor.toLowerCase())) score += 30;
+    // shared words with the printer's filament name ("PETG Pro Black")
+    const words = (slot.name || '').toLowerCase().split(/[^a-z0-9+]+/).filter(w => w.length > 2);
+    score += words.filter(w => name.includes(w)).length * 5;
+    return score;
+}
+
+/**
+ * Fill the slots from what the printer reports: per slot the best matching
+ * imported profile (name, then brand + material, then material), otherwise
+ * a new profile with the material's usual values and the slot's colour.
+ * Slots that already have a profile are kept unless `all` is set.
+ */
+export async function fromPrinter(all = true) {
+    await loadSlots();
+    const fil = store();
+    const count = api.conf.get().device.extruders?.length || 0;
+    const report = [];
+    let found = 0;
+    for (let i = 0; i < count; i++) {
+        const slot = slotInfo(i);
+        if (!slot?.material || (!all && fil.slots[i])) continue;
+        const color = isNaN(slot.color) ? undefined : '#' + slot.color.toString(16).padStart(6, '0');
+        let best, bestScore = 0;
+        for (const p of fil.library) {
+            // profiles made from another slot's report are only reused by name (below)
+            if (p.name.endsWith(' (printer)')) continue;
+            const score = matchScore(p, slot);
+            if (score > bestScore) { best = p; bestScore = score; }
+        }
+        if (!best) {
+            // nothing imported for this material: a generic profile from the printer's report
+            const type = guessType(slot.material) || slot.material.toUpperCase();
+            const label = slot.name || `${slot.vendor ? slot.vendor + ' ' : ''}${slot.material}`;
+            const name = `${label} (printer)`;
+            best = fil.library.find(p => p.name === name);
+            if (!best) {
+                best = { ...typeDefaults(type), name, type, color };
+                fil.library.push(best);
+                fil.library.sort((a, b) => a.name.localeCompare(b.name));
+                report.push(`slot ${i + 1}: new "${name}"`);
+            } else {
+                report.push(`slot ${i + 1}: ${name}`);
+            }
+        } else {
+            found++;
+            report.push(`slot ${i + 1}: ${best.name}`);
+        }
+        fil.slots[i] = best.name;
+    }
+    api.conf.save();
+    notify();
+    api.show.alert(report.length ? `from printer — ${report.join(' · ')}` : 'the printer reported no filaments', 8);
+    return report;
+}
+
 // listeners for library / slot assignment changes (side panel)
 const listeners = [];
 function notify() { listeners.forEach(fn => fn()) }
@@ -345,4 +409,4 @@ export function onFilaments(fn) { listeners.push(fn) }
 
 onSlots(() => { autoAssign(); notify() });
 
-export const filaments = { show: showFilaments, import: importFilaments, slotProfileName, edit: editFilament, setSlot: setSlotProfile, onChange: onFilaments, library: () => store().library };
+export const filaments = { show: showFilaments, import: importFilaments, slotProfileName, edit: editFilament, setSlot: setSlotProfile, onChange: onFilaments, library: () => store().library, fromPrinter };
