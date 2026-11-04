@@ -17,6 +17,7 @@ import { filaments } from '../filaments.js';
 import { processImport } from '../process-import.js';
 import { plates } from '../plates.js';
 import { toolbar } from '../toolbar.js';
+import { settingsSync } from '../settings-sync.js';
 
 const { SETUP, LOCAL } = api.const;
 const { catalog, client, platform, selection, stats, ui } = api;
@@ -363,6 +364,7 @@ function setup_keybd_nav() {
     colorPaint.init();
     plates.init();
     toolbar.init();
+    settingsSync.start();
     $('filament-profiles').onclick = (ev) => { ev.stopPropagation(); filaments.show() };
     $('set-filaments').onclick = (ev) => { ev.stopPropagation(); filaments.show() };
     $('set-orca-process').onclick = (ev) => { ev.stopPropagation(); processImport.pick() };
