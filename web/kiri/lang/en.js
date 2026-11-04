@@ -39,7 +39,7 @@ self.lang['en-us'] = {
     new:            "new",          // file new
     off:            "off",          // turn something off (like a lightbulb)
     on:             "on",           // turn something on (like a lightbulb)
-    profs:          "profiles",     // right menu "profiles"
+    profs:          "process profiles", // right menu "profiles"
     prefs:          "preferences",  // right menu "preferences"
     preview:        "preview",
     quit:           "quit",         // quit/exit the application (electron)
@@ -493,6 +493,10 @@ self.lang['en-us'] = {
     sp_xpnd_l:      ["expand support area","beyond part boundary","in millimeters"],
     sp_nozl_s:      "tool",
     sp_nozl_l:      ["in multi-extruder systems","the toolhead to use for","support material"],
+    sp_gtop_s:      "top z distance",
+    sp_gtop_l:      ["gap between the top of the support","and the part resting on it","in millimeters, rounded up","to whole layers (0 = none)"],
+    sp_gbot_s:      "bottom z distance",
+    sp_gbot_l:      ["gap between the part and support","standing on it","in millimeters, rounded up","to whole layers (0 = none)"],
     sp_outl_s:      "enclosed",
     sp_outl_l:      ["enclose support pattern","inside a perimeter shell"],
     sp_tree_s:      "tree type",
