@@ -10,6 +10,7 @@ import { newSlice } from '../../../core/slice.js';
 import { polygons as POLY } from '../../../../geo/polygons.js';
 import { slice, sliceZ } from '../../../../geo/slicer.js';
 import { util } from '../../../../geo/base.js';
+import { treeSupports } from './tree-support.js';
 
 const CONSTANTS = {
     // Support fill
@@ -590,13 +591,16 @@ export function sliceOne(settings, widget, onupdate, ondone) {
         let length = stack.length;
         let count = 0;
 
-        // convert shadows to trees, when specified
-        if (process.sliceSupportTree) {
-            // console.log('TREE OUTPUT');
+        // tree supports: branches grown down from the overhangs (tree-support.js)
+        // instead of the shadow projected straight down
+        let tree = process.sliceSupportType === 'tree' || (process.sliceSupportTree && !manual);
+        if (tree) {
+            treeSupports({ stack, process, lineWidth, newPoint, newPolygon, POLY,
+                progress: p => trackupdate(p, div[1].lo, div[1].hi, "tree support") });
         }
 
         // perform accumulation top down
-        for (let slice of stack.slice().reverse()) {
+        if (!tree) for (let slice of stack.slice().reverse()) {
             let shadow = slice.shadow ?? [];
             if (devel) slice.output().setLayer("shadow", 0xff0000).addPolys(shadow);
             if (process.sliceSupportExtra) {

@@ -11,6 +11,7 @@ const LISTS = {
     support: [
         { name: "disabled" },
         { name: "automatic" },
+        { name: "tree" },
         { name: "manual" },
     ],
     start: [

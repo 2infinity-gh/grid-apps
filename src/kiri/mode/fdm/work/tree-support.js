@@ -1,0 +1,207 @@
+/**
+ * Tree supports (support type "tree").
+ *
+ * Kiri's support pass leaves in slice.shadow, per layer, the areas right
+ * under an overhang that need support. Tree supports start branch tips on
+ * a grid inside those areas and grow the branches down layer by layer:
+ *
+ * - a branch moves sideways at most dz * tan(branch angle) per layer, toward
+ *   its nearest neighbour, and merges with it when they meet (fewer, thicker
+ *   trunks)
+ * - a branch that gets too close to the model is pushed away from it; when
+ *   that is not possible within one layer's move it ends, resting on the model
+ * - tips start at the tip diameter, reach the branch diameter within a few
+ *   layers, and then widen with the diameter angle on the way down
+ *
+ * Each layer's support is the union of its branch circles in slice.supports;
+ * the caller trims it with the part (xy offset, top/bottom z distance) and
+ * fills it like any other support.
+ */
+
+const DEG = Math.PI / 180;
+const TIP_LAYERS = 6;   // layers for a tip to grow to the branch diameter
+
+// ray casting on a polygon's points (holes in poly.inner)
+function insideRing(points, x, y) {
+    let inside = false;
+    for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+        const a = points[i], b = points[j];
+        if ((a.y > y) !== (b.y > y) && x < (b.x - a.x) * (y - a.y) / (b.y - a.y) + a.x) inside = !inside;
+    }
+    return inside;
+}
+
+function insidePoly(poly, x, y) {
+    if (!insideRing(poly.points, x, y)) return false;
+    for (const hole of poly.inner || []) if (insideRing(hole.points, x, y)) return false;
+    return true;
+}
+
+// the model at one layer, ready for distance and inside tests
+function obstacle(polys) {
+    const items = [];
+    for (const poly of polys || []) {
+        const rings = [ poly.points, ...(poly.inner || []).map(p => p.points) ];
+        const segs = [];
+        let minx = Infinity, miny = Infinity, maxx = -Infinity, maxy = -Infinity;
+        for (const ring of rings) {
+            for (let i = 0; i < ring.length; i++) {
+                const a = ring[i], b = ring[(i + 1) % ring.length];
+                segs.push([ a.x, a.y, b.x, b.y ]);
+                minx = Math.min(minx, a.x); miny = Math.min(miny, a.y);
+                maxx = Math.max(maxx, a.x); maxy = Math.max(maxy, a.y);
+            }
+        }
+        items.push({ poly, segs, minx, miny, maxx, maxy });
+    }
+    return {
+        // { inside, dist, qx, qy }: nearest point of the model's outline within `range`
+        probe(x, y, range) {
+            let best = { inside: false, dist: Infinity, qx: x, qy: y };
+            for (const it of items) {
+                if (x < it.minx - range || x > it.maxx + range || y < it.miny - range || y > it.maxy + range) continue;
+                if (!best.inside && insidePoly(it.poly, x, y)) best.inside = true;
+                for (const [ax, ay, bx, by] of it.segs) {
+                    const dx = bx - ax, dy = by - ay;
+                    const len = dx * dx + dy * dy;
+                    let t = len ? ((x - ax) * dx + (y - ay) * dy) / len : 0;
+                    t = Math.max(0, Math.min(1, t));
+                    const qx = ax + t * dx, qy = ay + t * dy;
+                    const d = Math.hypot(x - qx, y - qy);
+                    if (d < best.dist) { best.dist = d; best.qx = qx; best.qy = qy; }
+                }
+            }
+            return best;
+        }
+    };
+}
+
+// branch tips for one layer's overhang areas: a fixed xy grid (so tips line up
+// between layers), or the area's centre when it is smaller than the grid
+function contactPoints(polys, spacing) {
+    const out = [];
+    for (const poly of polys || []) {
+        const b = poly.getBounds ? poly.getBounds() : poly.bounds;
+        if (!b) continue;
+        let found = 0;
+        for (let x = Math.ceil(b.minx / spacing) * spacing; x <= b.maxx; x += spacing) {
+            for (let y = Math.ceil(b.miny / spacing) * spacing; y <= b.maxy; y += spacing) {
+                if (insidePoly(poly, x, y)) { out.push({ x, y }); found++; }
+            }
+        }
+        if (!found) {
+            const cx = (b.minx + b.maxx) / 2, cy = (b.miny + b.maxy) / 2;
+            if (insidePoly(poly, cx, cy)) out.push({ x: cx, y: cy });
+            else {
+                // thin or curved area: its first point is still on it
+                const p = poly.points[0];
+                out.push({ x: p.x, y: p.y });
+            }
+        }
+    }
+    return out;
+}
+
+export function treeSupports({ stack, process, lineWidth, newPoint, newPolygon, POLY, progress }) {
+    const angle = Math.min(75, Math.max(5, process.sliceSupportTreeAngle ?? 40));
+    const tipR = Math.max(lineWidth, process.sliceSupportTreeTip ?? 1.2) / 2;
+    const branchR = Math.max(tipR, (process.sliceSupportTreeBranch ?? 3) / 2);
+    const grow = Math.tan((process.sliceSupportTreeGrow ?? 3) * DEG);
+    const spacing = Math.max(1, process.sliceSupportTreeSpacing ?? 4);
+    const margin = lineWidth / 2;
+    const minArea = lineWidth * lineWidth;
+
+    const layers = stack.slice().sort((a, b) => b.z - a.z);   // top down
+    let nodes = [];
+    let count = 0;
+
+    for (let i = 0; i < layers.length; i++) {
+        const slice = layers[i];
+        const below = layers[i + 1];
+        const dz = below ? slice.z - below.z : slice.z;
+        const step = dz * Math.tan(angle * DEG);
+        const model = obstacle(slice.clips);
+
+        // 1. new tips under this layer's overhangs, unless a branch is already there
+        for (const p of contactPoints(slice.shadow, spacing)) {
+            if (nodes.some(n => Math.hypot(n.x - p.x, n.y - p.y) < Math.max(n.r, spacing * 0.6))) continue;
+            nodes.push({ x: p.x, y: p.y, r: tipR, age: 0 });
+        }
+
+        // 2. this layer's circles
+        if (nodes.length) {
+            const circles = nodes.map(n => {
+                const segs = Math.max(8, Math.min(32, Math.round(2 * Math.PI * n.r / 0.6)));
+                return newPolygon().centerCircle(newPoint(n.x, n.y, slice.z), n.r, segs, true);
+            });
+            const union = POLY.union(circles, minArea, true);
+            slice.supports = POLY.setZ(union, slice.z);
+        }
+        if (!below) break;
+
+        // 3. move the branches for the layer below: toward a neighbour, away from the model
+        const model2 = obstacle(below.clips);
+        const clear = n => {
+            const hit = model2.probe(n.x, n.y, n.r + margin + step);
+            return !hit.inside && hit.dist >= n.r + margin;
+        };
+        for (const n of nodes) {
+            let budget = step;
+            // keep clear of the model below
+            const hit = model2.probe(n.x, n.y, n.r + margin + step);
+            if (hit.inside || hit.dist < n.r + margin) {
+                let ux = n.x - hit.qx, uy = n.y - hit.qy;
+                let len = Math.hypot(ux, uy) || 1;
+                if (hit.inside) { ux = -ux; uy = -uy; }
+                ux /= len; uy /= len;
+                const need = hit.inside ? hit.dist + n.r + margin : n.r + margin - hit.dist;
+                const move = Math.min(need, budget);
+                n.x += ux * move; n.y += uy * move;
+                budget -= move;
+                if (!clear(n)) { n.dead = true; continue; }   // rests on the model
+            }
+            // drift toward the nearest neighbour to merge into a trunk
+            let near, nd = Infinity;
+            for (const m of nodes) {
+                if (m === n || m.dead) continue;
+                const d = Math.hypot(m.x - n.x, m.y - n.y);
+                if (d < nd) { nd = d; near = m; }
+            }
+            if (near && budget > 0 && nd < spacing * 4) {
+                const move = Math.min(budget, nd / 2);
+                const ox = n.x, oy = n.y;
+                n.x += (near.x - n.x) / nd * move;
+                n.y += (near.y - n.y) / nd * move;
+                if (!clear(n)) { n.x = ox; n.y = oy; }
+            }
+        }
+        nodes = nodes.filter(n => !n.dead);
+
+        // 4. merge branches that meet
+        for (let a = 0; a < nodes.length; a++) {
+            const n = nodes[a];
+            if (n.gone) continue;
+            for (let b = a + 1; b < nodes.length; b++) {
+                const m = nodes[b];
+                if (m.gone) continue;
+                const d = Math.hypot(m.x - n.x, m.y - n.y);
+                if (d <= Math.max(step, Math.min(n.r, m.r))) {
+                    const wn = n.r * n.r, wm = m.r * m.r;
+                    n.x = (n.x * wn + m.x * wm) / (wn + wm);
+                    n.y = (n.y * wn + m.y * wm) / (wn + wm);
+                    n.r = Math.max(n.r, m.r, Math.sqrt(wn + wm) * 0.8);
+                    n.age = Math.max(n.age, m.age);
+                    m.gone = true;
+                }
+            }
+        }
+        nodes = nodes.filter(n => !n.gone);
+
+        // 5. thicker on the way down
+        for (const n of nodes) {
+            n.age++;
+            n.r = n.r < branchR ? Math.min(branchR, n.r + (branchR - tipR) / TIP_LAYERS) : n.r + dz * grow;
+        }
+        if (progress) progress(++count / layers.length);
+    }
+}

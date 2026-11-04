@@ -43,7 +43,15 @@ const MAP = {
     z_hop:                        v => ({ zHopDistance: v }),
     skirt_loops:                  v => ({ outputBrimCount: v }),
     skirt_distance:               v => ({ outputBrimOffset: v }),
-    enable_support:               v => ({ sliceSupportType: v ? 'automatic' : 'disabled' }),
+    enable_support:               (v, p) => {
+        const type = String(value(p.support_type) ?? '');
+        return { sliceSupportType: !v ? 'disabled' : type.startsWith('tree') ? 'tree' : type.includes('manual') ? 'manual' : 'automatic' };
+    },
+    tree_support_branch_angle:    v => ({ sliceSupportTreeAngle: v }),
+    tree_support_tip_diameter:    v => ({ sliceSupportTreeTip: v }),
+    tree_support_branch_diameter: v => ({ sliceSupportTreeBranch: v }),
+    tree_support_branch_diameter_angle: v => ({ sliceSupportTreeGrow: v }),
+    tree_support_branch_distance: v => ({ sliceSupportTreeSpacing: v }),
     support_top_z_distance:       v => ({ sliceSupportGapTop: v }),
     support_bottom_z_distance:    v => ({ sliceSupportGapBottom: v }),
     support_object_xy_distance:   v => ({ sliceSupportOffset: v }),
@@ -71,7 +79,7 @@ const KNOWN_UNMAPPED = [
     'sparse_infill_speed', 'top_surface_pattern', 'bottom_surface_pattern', 'brim_width', 'brim_type',
     'seam_gap', 'wipe_on_loops', 'only_one_wall_top', 'detect_overhang_wall', 'enable_arc_fitting',
     'outer_wall_line_width', 'inner_wall_line_width', 'sparse_infill_line_width', 'top_surface_line_width',
-    'support_interface_top_layers', 'tree_support_branch_angle', 'xy_hole_compensation', 'xy_contour_compensation',
+    'support_interface_top_layers', 'xy_hole_compensation', 'xy_contour_compensation',
     'elefant_foot_compensation', 'fuzzy_skin', 'slow_down_layers', 'precise_outer_wall', 'overhang_reverse',
     // Kiri's "adaptive" thin walls are the nearest thing but crash on some models, so not mapped
     'wall_generator'
