@@ -99,6 +99,25 @@ function revert() {
     });
 }
 
+function remove() {
+    const { set, name } = current();
+    const others = Object.keys(set.sproc[set.mode]).filter(n => n !== name && n !== 'default');
+    if (!name || name === 'default' || !others.length) {
+        api.show.alert('keep at least one profile: save another one first (save as…)', 3);
+        return;
+    }
+    api.uc.confirm(`Delete profile "${name}"?`).then(yes => {
+        if (!yes) return;
+        delete set.sproc[set.mode][name];
+        for (const [dev, proc] of Object.entries(set.devproc || {})) if (proc === name) set.devproc[dev] = others[0];
+        if (set.cproc[set.mode] === name) set.cproc[set.mode] = others[0];
+        api.conf.load(undefined, others[0], true);
+        api.conf.save();
+        api.show.alert(`deleted profile "${name}"`, 2);
+        refresh();
+    });
+}
+
 // switching profile from the selector: ask first when there are unsaved edits
 export function confirmSwitch(selector) {
     const { name } = current();
@@ -127,9 +146,11 @@ export function initProcessSave() {
     saveBtn = button('save', 'save the changes into this profile', save);
     revertBtn = button('revert', 'discard the unsaved changes', revert);
     const asBtn = button('save as…', 'store the current settings as a new profile', saveAs);
+    const delBtn = button('delete', 'delete this profile', remove);
+    delBtn.style.color = '#c62828';
     label = document.createElement('span');
     label.style.cssText = 'display:block;flex-basis:100%;color:#c77700;font:11px sans-serif;text-transform:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
-    row.append(saveBtn, asBtn, revertBtn, label);
+    row.append(saveBtn, asBtn, revertBtn, delBtn, label);
     anchor.after(row);
     for (const ev of [ 'settings.saved', 'settings.load', 'settings' ]) api.event.on(ev, refresh);
     refresh();

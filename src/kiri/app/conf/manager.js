@@ -68,6 +68,14 @@ function saveSettings() {
     api.event.emit('settings.saved', settings);
 }
 
+function fillDefaults(process, mode) {
+    const defs = conf.defaults[String(mode).toLowerCase()]?.p;
+    if (!defs || !process) return;
+    for (const [key, val] of Object.entries(defs)) {
+        if (!(key in process)) process[key] = clone(val);
+    }
+}
+
 function loadSettings(evt, named, force) {
     let mode = settings.mode,
         name = evt ? evt.target.getAttribute("load") : named || api.process.get() || "default",
@@ -80,7 +88,11 @@ function loadSettings(evt, named, force) {
     // re-loading the profile being edited (start, device select) keeps the
     // unsaved working copy; picking a profile or revert (force) replaces it
     const keep = !evt && !force && settings.process?.processName === name;
+    // profiles may carry only part of the settings (device presets): fill in the
+    // defaults, or edits to the missing ones would never reach the profile
+    fillDefaults(load, mode);
     if (!keep) settings.process = clone(load);
+    fillDefaults(settings.process, mode);
     // update process name
     settings.process.processName = name;
     // save named process with the current device

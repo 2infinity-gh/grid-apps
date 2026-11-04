@@ -51,6 +51,8 @@ export function init() {
         "outputLoops": LANG.ag_loop_s,
         "sliceSupportDensity": LANG.sp_dens_s,
         "sliceSupportOffset": LANG.sp_offs_s,
+        "sliceSupportGapTop": LANG.sp_gtop_s,
+        "sliceSupportGapBottom": LANG.sp_gbot_s,
         "sliceLayerStart": LANG.sl_strt_s,
         "firstLayerBrim": LANG.fl_brim_s,
         "firstLayerBrimIn": LANG.fl_brin_s,

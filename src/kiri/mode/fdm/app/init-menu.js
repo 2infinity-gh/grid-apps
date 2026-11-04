@@ -126,7 +126,8 @@ export function menu() {
     // sliceSupportSpan:    newInput(LANG.sp_span_s, {title:LANG.sp_span_l, convert:toFloat, bound:bound(0.0,200.0), show:() => ui.sliceSupportEnable.checked }),
     separator:           newBlank({ class:"set-sep", driven }),
     sliceSupportOutline: newBoolean(LANG.sp_outl_s, onBooleanClick, {title:LANG.sp_outl_l, xshow: () => !isTree() }),
-    sliceSupportGap:     newBoolean(LANG.sp_gaps_s, onBooleanClick, {title:LANG.sp_gaps_l }),
+    sliceSupportGapTop:  newInput(LANG.sp_gtop_s, {title:LANG.sp_gtop_l, convert:toFloat, bound:bound(0.0,5.0)}),
+    sliceSupportGapBottom: newInput(LANG.sp_gbot_s, {title:LANG.sp_gbot_l, convert:toFloat, bound:bound(0.0,5.0)}),
     sliceSupportTree:    newBoolean(LANG.sp_tree_s, onBooleanClick, {title:LANG.sp_tree_l }),
     separator:           newBlank({ class:"set-sep", driven, show:manualSupport }),
     sliceSupportManual: newRow([

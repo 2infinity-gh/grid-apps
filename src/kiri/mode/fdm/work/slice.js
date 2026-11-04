@@ -657,14 +657,18 @@ export function sliceOne(settings, widget, onupdate, ondone) {
         console.log({ slices: slices.map(s => s.supportsDiff) });
         }
 
-        // trim using support part offset value
-        let gaps = process.sliceSupportGap;
+        // trim using support part offset value, and keep the top / bottom z
+        // distance free: clip with the part's layers that far above and below
+        let layer = process.sliceHeight || 0.2;
+        let legacy = process.sliceSupportGap ? layer : 0;
+        let layers = mm => Math.ceil((mm ?? legacy) / layer - 0.01);
+        let gapTop = layers(process.sliceSupportGapTop);
+        let gapBottom = layers(process.sliceSupportGapBottom);
         for (let slice of stack) {
-            let clips = [
-                slice.clips,
-                gaps ? slice.up?.clips : undefined,
-                gaps ? slice.down?.clips : undefined
-            ].filter(v => v).flat();
+            let clips = [ slice.clips ];
+            for (let i = 0, s = slice.up; i < gapTop && s; i++, s = s.up) clips.push(s.clips);
+            for (let i = 0, s = slice.down; i < gapBottom && s; i++, s = s.down) clips.push(s.clips);
+            clips = clips.filter(v => v).flat();
             if (clips.length) {
                 let rem  = [];
                 clips = POLY.union(clips, minArea, true);

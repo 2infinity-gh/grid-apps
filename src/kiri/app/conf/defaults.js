@@ -349,6 +349,9 @@ export const conf = {
                 sliceSupportDensity: 0.1,
                 sliceSupportExtra: 0,
                 sliceSupportGap: true,
+                // vertical gaps in mm between support and part (Orca's top/bottom z distance)
+                sliceSupportGapTop: 0.2,
+                sliceSupportGapBottom: 0.2,
                 sliceSupportNozzle: 0,
                 sliceSupportOffset: 1.0,
                 sliceSupportOutline: true,

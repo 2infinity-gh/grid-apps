@@ -142,6 +142,7 @@ export async function importFilaments(files) {
     fil.library.sort((a, b) => a.name.localeCompare(b.name));
     autoAssign();
     api.conf.save();
+    notify();
     api.show.alert(`imported ${count} filament profile${count === 1 ? '' : 's'}` +
         (skipped.length ? `, skipped ${skipped.length}: ${skipped.join(', ')}` : ''), 6);
     return count;
@@ -179,7 +180,7 @@ export function showFilaments() {
     wrap.id = 'filament-dialog';
     const box = el('div', 'display:flex;flex-direction:column;gap:10px;box-sizing:border-box;width:min(480px,94vw);max-height:88vh;overflow-y:auto;background:#fff;color:#222;border-radius:10px;padding:16px 18px;font:14px sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.3)');
     wrap.appendChild(box);
-    const close = () => { wrap.remove(); api.conf.save(); };
+    const close = () => { wrap.remove(); api.conf.save(); notify(); };
     wrap.onclick = ev => { if (ev.target === wrap) close() };
     const button = (text, onclick, primary) => {
         const b = el('button', `display:inline-block;padding:6px 12px;border-radius:6px;border:1px solid ${primary ? '#3b82f6' : '#bbb'};background:${primary ? '#3b82f6' : '#f3f3f3'};color:${primary ? '#fff' : '#222'};cursor:pointer;font:13px sans-serif`, text);
@@ -236,6 +237,112 @@ export function showFilaments() {
     document.body.appendChild(wrap);
 }
 
-onSlots(() => { autoAssign() });
+// editable fields of a filament profile: key, label, unit, input type
+const FIELDS = [
+    [ 'type', 'material', '', 'text' ],
+    [ 'color', 'colour', '', 'color' ],
+    [ 'temp', 'nozzle', '°C' ], [ 'tempFirst', 'nozzle first layer', '°C' ],
+    [ 'bed', 'bed', '°C' ], [ 'bedFirst', 'bed first layer', '°C' ],
+    [ 'flow', 'flow ratio', '' ], [ 'mvs', 'max volumetric speed', 'mm³/s' ],
+    [ 'fanMax', 'fan max', '%' ], [ 'fanOffLayers', 'fan off first', 'layers' ],
+    [ 'retract', 'retraction length', 'mm' ], [ 'retractSpeed', 'retraction speed', 'mm/s' ],
+    [ 'pa', 'pressure advance', '' ],
+];
 
-export const filaments = { show: showFilaments, import: importFilaments, slotProfileName };
+export function setSlotProfile(slot, name) {
+    store().slots[slot] = name;
+    api.conf.save();
+    notify();
+}
+
+// a dialog to change one filament profile: save, save as a new profile, or delete it
+export function editFilament(name, slot) {
+    const fil = store();
+    const profile = fil.library.find(p => p.name === name);
+    if (!profile) return;
+    document.getElementById('filament-edit')?.remove();
+    const el = (tag, css, text) => {
+        const e = document.createElement(tag);
+        e.style.cssText = css || '';
+        if (text !== undefined) e.textContent = text;
+        return e;
+    };
+    const wrap = el('div', 'position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center');
+    wrap.id = 'filament-edit';
+    const box = el('div', 'display:flex;flex-direction:column;gap:8px;box-sizing:border-box;width:min(420px,94vw);max-height:90vh;overflow-y:auto;background:#fff;color:#222;border-radius:10px;padding:16px 18px;font:13px sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.3)');
+    wrap.appendChild(box);
+    const close = () => wrap.remove();
+    wrap.onclick = ev => { if (ev.target === wrap) close() };
+    box.appendChild(el('div', 'display:block;font-weight:bold;font-size:15px;word-break:break-word', name));
+    const inputs = {};
+    const grid = el('div', 'display:grid;grid-template-columns:1fr 110px 44px;gap:5px 8px;align-items:center');
+    for (const [key, label, unit, type] of FIELDS) {
+        grid.appendChild(el('label', 'display:block;color:#444', label));
+        const input = el('input', 'display:block;box-sizing:border-box;width:100%;padding:4px;font:13px sans-serif');
+        input.type = type || 'number';
+        if (!type) input.step = 'any';
+        const v = profile[key];
+        input.value = key === 'color' ? (/^#[0-9a-f]{6}$/i.test(v) ? v : '#cccccc') : (v ?? '');
+        inputs[key] = input;
+        grid.appendChild(input);
+        grid.appendChild(el('span', 'display:block;color:#777;font-size:11px', unit));
+    }
+    box.appendChild(grid);
+    const read = () => {
+        const out = {};
+        for (const [key, , , type] of FIELDS) {
+            const raw = inputs[key].value.trim();
+            if (raw === '') continue;
+            out[key] = type ? raw : parseFloat(raw);
+            if (!type && isNaN(out[key])) delete out[key];
+        }
+        return out;
+    };
+    const finish = text => { api.conf.save(); notify(); api.show.alert(text, 2); close(); };
+    const button = (text, onclick, css = '') => {
+        const b = el('button', 'display:inline-block;padding:6px 12px;border-radius:6px;border:1px solid #bbb;background:#f3f3f3;color:#222;cursor:pointer;font:13px sans-serif;' + css, text);
+        b.onclick = onclick;
+        return b;
+    };
+    const buttons = el('div', 'display:flex;flex-direction:row;flex-wrap:wrap;gap:8px;justify-content:flex-end');
+    buttons.appendChild(button('delete', () => {
+        api.uc.confirm(`Delete filament profile "${name}"?`).then(yes => {
+            if (!yes) return;
+            fil.library = fil.library.filter(p => p !== profile);
+            fil.slots = fil.slots.map(n => n === name ? '' : n);
+            finish(`deleted "${name}"`);
+        });
+    }, 'color:#c62828;margin-right:auto'));
+    buttons.appendChild(button('cancel', close));
+    buttons.appendChild(button('save as…', () => {
+        api.uc.prompt('Save filament profile as', `${name} (copy)`).then(newName => {
+            newName = (newName || '').trim();
+            if (!newName) return;
+            const put = () => {
+                fil.library = fil.library.filter(p => p.name !== newName);
+                fil.library.push({ ...profile, ...read(), name: newName });
+                fil.library.sort((a, b) => a.name.localeCompare(b.name));
+                if (slot !== undefined) fil.slots[slot] = newName;
+                finish(`saved as "${newName}"`);
+            };
+            if (fil.library.some(p => p.name === newName)) api.uc.confirm(`Replace "${newName}"?`).then(yes => yes && put());
+            else put();
+        });
+    }));
+    buttons.appendChild(button('save', () => {
+        for (const [key] of FIELDS) delete profile[key];
+        Object.assign(profile, read());
+        finish(`saved "${name}"`);
+    }, 'background:#3b82f6;border-color:#3b82f6;color:#fff'));
+    box.appendChild(buttons);
+    document.body.appendChild(wrap);
+}
+
+// listeners for library / slot assignment changes (side panel)
+const listeners = [];
+function notify() { listeners.forEach(fn => fn()) }
+export function onFilaments(fn) { listeners.push(fn) }
+
+onSlots(() => { autoAssign(); notify() });
+
+export const filaments = { show: showFilaments, import: importFilaments, slotProfileName, edit: editFilament, setSlot: setSlotProfile, onChange: onFilaments, library: () => store().library };

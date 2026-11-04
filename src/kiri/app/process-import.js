@@ -44,6 +44,9 @@ const MAP = {
     skirt_loops:                  v => ({ outputBrimCount: v }),
     skirt_distance:               v => ({ outputBrimOffset: v }),
     enable_support:               v => ({ sliceSupportType: v ? 'automatic' : 'disabled' }),
+    support_top_z_distance:       v => ({ sliceSupportGapTop: v }),
+    support_bottom_z_distance:    v => ({ sliceSupportGapBottom: v }),
+    support_object_xy_distance:   v => ({ sliceSupportOffset: v }),
     // Orca: overhang slope from horizontal; Kiri: max overhang from vertical
     support_threshold_angle:      v => v > 0 ? ({ sliceSupportAngle: 90 - v }) : ({}),
     seam_position:                v => ({ sliceLayerStart: { nearest: 'last', aligned: 'aligned', back: 'back', random: 'random' }[v] ?? 'last' }),

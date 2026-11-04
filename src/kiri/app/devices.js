@@ -156,7 +156,8 @@ function setDeviceCode(code, devicename) {
         conf.fill_cull_once(dev, conf.defaults[lmode].d);
 
         // first time device use, add any print profiles and set to default if present
-        if (code.profiles) {
+        // (only then: a profile the user deleted must not come back)
+        if (code.profiles && newdev) {
             for (let profile of code.profiles) {
                 let profname = profile.processName;
                 // if no saved profile by that name for this mode...
