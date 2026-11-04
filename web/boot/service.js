@@ -40,21 +40,17 @@ self.addEventListener('message', e => {
     }
 });
 
+// skoren fork: no static cache routes. The bundle version does not change
+// between our builds, so a cache-first worker kept serving old code forever;
+// everything is now fetched network first, the cache is the offline fallback.
 async function _install(e) {
     log('install');
-    if (e.addRoutes) {
-        for (let pre of ["font","mesh","kiri","void","lib","wasm"]) {
-            e.addRoutes({
-                condition: { urlPattern: new URLPattern({ pathname: `/${pre}/.*` }) },
-                source: { cacheName: CACHE_VERSION }
-            });
-        }
-    }
 }
 
 async function _activate(event) {
     log('activate');
-    event.waitUntil(clients.claim())
+    // drop what older (cache-first) workers stored
+    event.waitUntil(caches.delete(CACHE_VERSION).then(() => clients.claim()));
 }
 
 // --- unregister current service worker ---
@@ -136,6 +132,9 @@ async function _fetch(e) {
 
     if (request.method !== 'GET') return;
 
+    // page loads go straight to the server (redirects, the skoren.nl login)
+    if (request.mode === 'navigate') return;
+
     if (mode == 'transparent') {
         e.respondWith(fetch(e.request));
         return;
@@ -161,17 +160,17 @@ async function redirectToUrl(path, request) {
 }
 
 async function fromCacheOrNetwork(req) {
-    const cache = await cacheOpen;
-    const hit = await cache.match(req, { ignoreSearch: true });
-    if (hit) {
-        if (debug) log('CACHE HIT', req.url);
-        return hit;
+    const cache = await caches.open(CACHE_VERSION);
+    try {
+        const net = await fetch_safe(req);
+        if (net.ok) cache.put(req, net.clone());
+        return net;
+    } catch (error) {
+        // offline: the last copy we had
+        const hit = await cache.match(req, { ignoreSearch: true });
+        if (hit) return hit;
+        throw error;
     }
-    if (debug) log('CACHE MISS', req.url);
-    const net = await fetch_safe(req);
-    cache.put(req, net.clone());
-    log(`put: ${net.url}`);
-    return net;
 }
 
 async function broadcast(message) {
