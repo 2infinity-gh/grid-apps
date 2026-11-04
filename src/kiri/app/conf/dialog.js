@@ -22,7 +22,7 @@ function editSettings(e) {
             try {
                 current.sproc[mode][name] = JSON.parse(edit);
                 if (name === settings.proc().processName) {
-                    api.conf.load(null, name);
+                    api.conf.load(null, name, true);
                 }
                 api.conf.save();
                 api.settings.sync.put();
@@ -80,7 +80,7 @@ function updateProcessList() {
 
         load.setAttribute('load', sk);
         load.onclick = (ev) => {
-            api.conf.load(undefined, sk);
+            api.conf.load(undefined, sk, true);
             updateProcessList();
             // update pulldowns
             api.devices.refresh();

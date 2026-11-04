@@ -7,6 +7,7 @@ import { canEditSLAMachine } from '../mode/sla/core/formats.js';
 import { space } from '../../moto/space.js';
 import { devices as devlist } from '../../pack/kiri-devs.js';
 import { settings, conf as setconf } from './conf/manager.js';
+import { confirmSwitch } from './process-save.js';
 
 export const device = {
     clone: cloneDevice,
@@ -391,7 +392,8 @@ function renderDevices(devices) {
     }));
 
     api.ui.modeProfile.onchange = () => {
-        api.conf.load(undefined, api.ui.modeProfile.value);
+        const name = api.ui.modeProfile.value;
+        confirmSwitch(api.ui.modeProfile).then(yes => yes && api.conf.load(undefined, name, true));
     };
 }
 

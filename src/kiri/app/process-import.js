@@ -121,7 +121,7 @@ export async function importProcesses(files) {
         last = raw.name;
     }
     if (last) {
-        api.conf.load(null, last);
+        api.conf.load(null, last, true);
         api.conf.save();
         api.devices.refresh();
     }

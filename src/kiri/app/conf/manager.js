@@ -57,7 +57,8 @@ function saveSettings() {
     }
     const mode = settings.mode;
     settings.sproc[mode].default = settings.process;
-    settings.sproc[mode][settings.process.processName] = settings.process;
+    // a named profile changes only when the user saves it (process-save.js);
+    // until then settings.process is the working copy
     // moved to init.onBooleanClick() -- delete later after confirming no side-effects
     // settings.device.bedBelt = ui.deviceBelt.checked;
     // settings.device.bedRound = ui.deviceRound.checked;
@@ -67,7 +68,7 @@ function saveSettings() {
     api.event.emit('settings.saved', settings);
 }
 
-function loadSettings(evt, named) {
+function loadSettings(evt, named, force) {
     let mode = settings.mode,
         name = evt ? evt.target.getAttribute("load") : named || api.process.get() || "default",
         load = settings.sproc[mode][name];
@@ -76,7 +77,10 @@ function loadSettings(evt, named) {
 
     // cloning loaded process into settings requires user to save
     // process before switching devices or risk losing any changes
-    settings.process = clone(load);
+    // re-loading the profile being edited (start, device select) keeps the
+    // unsaved working copy; picking a profile or revert (force) replaces it
+    const keep = !evt && !force && settings.process?.processName === name;
+    if (!keep) settings.process = clone(load);
     // update process name
     settings.process.processName = name;
     // save named process with the current device
