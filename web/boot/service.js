@@ -132,21 +132,19 @@ async function _fetch(e) {
 
     if (request.method !== 'GET') return;
 
-    // page loads go straight to the server (redirects, the skoren.nl login)
+    // page loads go straight to the server (redirects, the skoren.nl login),
+    // and so do the live APIs (printer, settings sync): never cached or rewritten
     if (request.mode === 'navigate') return;
+    if (/^\/(printer-api|kiri-sync)\//.test(url.pathname)) return;
 
     if (mode == 'transparent') {
         e.respondWith(fetch(e.request));
         return;
     }
 
-    if (url.pathname.endsWith("/")) {
-        return e.respondWith(redirectToUrl(appendURL(url, 'index.html').pathname, request));
-    } else if (url.pathname.indexOf(".") < 0 || url.pathname.endsWith("/boot")) {
-        return e.respondWith(redirectToUrl(appendURL(url, '/index.html').pathname, request));
-    } else {
-        e.respondWith(fromCacheOrNetwork(request));
-    }
+    // (upstream rewrote paths without a dot to .../index.html: only meant for
+    // page loads, which no longer come here)
+    e.respondWith(fromCacheOrNetwork(request));
 }
 
 // --- helpers ---
