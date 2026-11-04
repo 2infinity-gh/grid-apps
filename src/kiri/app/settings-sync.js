@@ -29,6 +29,18 @@ function syncText(settings) {
     return JSON.stringify({ ...settings, controller });
 }
 
+// more than what Kiri starts with: imported filaments or extra process profiles
+function hasOwnProfiles(settings) {
+    const procs = Object.keys(settings.sproc?.FDM || {}).filter(n => n !== 'default');
+    return (settings.filaments?.library?.length || 0) > 0 || procs.length > 1;
+}
+
+function describe(settings) {
+    const procs = Object.keys(settings.sproc?.FDM || {}).filter(n => n !== 'default').length;
+    const fils = settings.filaments?.library?.length || 0;
+    return `${procs} process, ${fils} filament profile${fils === 1 ? '' : 's'}`;
+}
+
 async function fetchServer() {
     const res = await fetch(URL, { cache: 'no-store', credentials: 'same-origin', redirect: 'manual' });
     if (res.status === 404) return { none: true };
@@ -96,7 +108,17 @@ async function start() {
         // first device: this browser's settings become the shared ones
         await upload().catch(e => console.log('settings sync: upload failed', e.message));
     } else if (server.stamp > have && !dirty) {
-        return adopt(server);
+        // first sync of a browser that has its own profiles: ask, never overwrite silently
+        if (!have && hasOwnProfiles(api.conf.get()) && syncText(api.conf.get()) !== syncText(server.settings)) {
+            const theirs = describe(server.settings), mine = describe(api.conf.get());
+            const useServer = await api.uc.confirm(
+                `Profiles on the server (${theirs}) differ from this browser (${mine}).<br>` +
+                `Yes: load the server's profiles here. No: upload this browser's profiles.`);
+            if (useServer) return adopt(server);
+            await upload().catch(e => console.log('settings sync: upload failed', e.message));
+        } else {
+            return adopt(server);
+        }
     } else if (dirty) {
         // changed here while the upload failed (offline): ours are the latest
         await upload().catch(e => console.log('settings sync: upload failed', e.message));
