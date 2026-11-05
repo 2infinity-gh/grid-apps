@@ -1180,13 +1180,32 @@ function slicePrintPath(print, slice, startPoint, offset, output, opt = {}) {
         printSpeed = finishSpeed || printSpeed;
     }
 
+    // speeds per feature (Orca style; 0 = Kiri's own rules). Kiri knows per
+    // layer, not per region, whether it holds a top surface or a bridge.
+    const featureSpeeds = !firstLayer && !opt.speed;
+    const { outputSpeedTop, outputSpeedSolid, outputSpeedSparse, outputSpeedBridge,
+        outputSpeedGap, outputSpeedSupport, outputSpeedSmall, outputSmallRadius } = process;
+    let gapSpeed = fillSpeed;
+    if (featureSpeeds) {
+        if (outputSpeedSolid && !opt.fillSpeed) fillSpeed = outputSpeedSolid;
+        if (outputSpeedSparse && !opt.infillSpeed) infillSpeed = outputSpeedSparse;
+        if (outputSpeedGap) gapSpeed = outputSpeedGap;
+        if (outputSpeedTop && slice.isFlatsLayer) fillSpeed = outputSpeedTop;
+        if (outputSpeedBridge && slice.isBridgeLayer) fillSpeed = outputSpeedBridge;
+    }
+
     // override: adapt bridge layer speed and flats
     // but not on the first layer which has it's own settings
-    if (slice.index > 0 && (slice.isBridgeLayer || slice.isFlatsLayer)) {
+    // (not when the top / bridge speed is set: then that speed applies)
+    if (slice.index > 0 && ((slice.isBridgeLayer && !(featureSpeeds && outputSpeedBridge)) ||
+        (slice.isFlatsLayer && !slice.isBridgeLayer && !(featureSpeeds && outputSpeedTop)))) {
         fillSpeed /= 2;
         printSpeed /= 2;
         finishSpeed /= 2;
     }
+    if (!(featureSpeeds && outputSpeedGap)) gapSpeed = fillSpeed;
+    // small perimeters (holes, pins): a loop shorter than a circle of this radius
+    const smallLoop = featureSpeeds && outputSpeedSmall ? 2 * Math.PI * (outputSmallRadius || 6.5) : 0;
 
     function retract() {
         let array = preout.length ? preout : output;
@@ -1429,7 +1448,8 @@ function slicePrintPath(print, slice, startPoint, offset, output, opt = {}) {
                     }
                     seedPoint = null;
                 },
-                rate: finishShell ? finishSpeed : printSpeed,
+                rate: smallLoop && poly.perimeter() < smallLoop ? Math.min(outputSpeedSmall, finishShell ? finishSpeed : printSpeed) :
+                    finishShell ? finishSpeed : printSpeed,
                 scarf,
                 tool: extruder,
                 zmax
@@ -1580,12 +1600,12 @@ function slicePrintPath(print, slice, startPoint, offset, output, opt = {}) {
                 retract();
                 print.addOutput(preout, p, 0, moveSpeed, extruder);
             }
-            print.addOutput(preout, p, 1, fillSpeed, extruder);
+            print.addOutput(preout, p, 1, gapSpeed, extruder);
             startPoint = last = p;
         }
         // close a circle
         if (last && last.distTo2D(first) <= thinWall) {
-            print.addOutput(preout, first, 1, fillSpeed, extruder);
+            print.addOutput(preout, first, 1, gapSpeed, extruder);
             startPoint = first;
         }
     }
@@ -1810,6 +1830,8 @@ function slicePrintPath(print, slice, startPoint, offset, output, opt = {}) {
             print.setType('support');
             // support polygon
             next.setZ(z);
+            const saved = [ printSpeed, finishSpeed, fillSpeed ];
+            if (featureSpeeds && outputSpeedSupport) printSpeed = finishSpeed = fillSpeed = outputSpeedSupport;
             if (process.sliceSupportOutline !== false) {
                 outputTraces([next].appendAll(next.inner || []));
             }
@@ -1817,6 +1839,7 @@ function slicePrintPath(print, slice, startPoint, offset, output, opt = {}) {
                 next.fill.forEach(p => { p.z = z });
                 outputFills(next.fill, {fast: true, near: true});
             }
+            [ printSpeed, finishSpeed, fillSpeed ] = saved;
         } else {
             // solid infill
             let top = next;

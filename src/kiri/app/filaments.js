@@ -54,6 +54,8 @@ function fromOrca(json) {
         flow: pick('filament_flow_ratio'),
         fanMax: pick('fan_max_speed'),
         fanOffLayers: pick('close_fan_the_first_x_layers'),
+        fanMin: pick('fan_min_speed'),
+        fanLayerTime: pick('fan_cooling_layer_time'),
         mvs: pick('filament_max_volumetric_speed'),
         retract: pick('filament_retraction_length'),
         retractSpeed: pick('filament_retraction_speed'),

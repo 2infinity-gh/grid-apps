@@ -118,6 +118,21 @@ const MAP = {
         const f = k => (value(p[k]) ?? 1) * v;
         return { outputShellMult: f('outer_wall_flow_ratio'), outputFillMult: f('internal_solid_infill_flow_ratio'), outputSparseMult: f('sparse_infill_flow_ratio') };
     },
+    // speeds per feature (percentages are of the outer / inner wall speed)
+    top_surface_speed:            v => ({ outputSpeedTop: v }),
+    internal_solid_infill_speed:  (v, p) => ({ outputSpeedSolid: pct(v) ? pct(v) * (value(p.inner_wall_speed) || 0) : v }),
+    sparse_infill_speed:          (v, p) => ({ outputSpeedSparse: pct(v) ? pct(v) * (value(p.inner_wall_speed) || 0) : v }),
+    bridge_speed:                 v => ({ outputSpeedBridge: v }),
+    gap_infill_speed:             v => ({ outputSpeedGap: v }),
+    support_speed:                v => ({ outputSpeedSupport: v }),
+    small_perimeter_speed:        (v, p) => ({ outputSpeedSmall: pct(v) ? Math.round(pct(v) * (value(p.outer_wall_speed) || 0)) : v }),
+    small_perimeter_threshold:    v => ({ outputSmallRadius: v > 0 ? v : 6.5 }),
+    elefant_foot_compensation:    v => ({ firstLayerElephant: v }),
+    top_shell_thickness:          v => ({ sliceTopThickness: v }),
+    bottom_shell_thickness:       v => ({ sliceBottomThickness: v }),
+    fan_min_speed:                v => ({ outputFanMin: v }),
+    fan_cooling_layer_time:       v => ({ outputFanLayerTime: v }),
+    enable_arc_fitting:           v => ({ fdmArcEnabled: [1, '1', 'true'].includes(v) }),
     // shapes and extras
     spiral_mode:                  v => [1, '1', 'true'].includes(v) ? { sliceFillType: 'vase' } : {},
     draft_shield:                 v => ({ outputDraftShield: v === 'enabled' || v === 'limited' }),
@@ -135,11 +150,10 @@ const MAP = {
 
 // Orca settings that matter for the result but have no Kiri counterpart
 const KNOWN_UNMAPPED = [
-    'bridge_speed', 'gap_infill_speed', 'support_speed', 'top_surface_speed', 'internal_solid_infill_speed',
-    'sparse_infill_speed', 'top_surface_pattern', 'bottom_surface_pattern', 'brim_width', 'brim_type',
-    'seam_gap', 'wipe_on_loops', 'only_one_wall_top', 'detect_overhang_wall', 'enable_arc_fitting',
+    'top_surface_pattern', 'bottom_surface_pattern', 'brim_width', 'brim_type',
+    'seam_gap', 'wipe_on_loops', 'only_one_wall_top', 'detect_overhang_wall',
     'outer_wall_line_width', 'inner_wall_line_width', 'sparse_infill_line_width', 'top_surface_line_width',
-    'elefant_foot_compensation', 'fuzzy_skin', 'slow_down_layers', 'precise_outer_wall', 'overhang_reverse',
+    'fuzzy_skin', 'slow_down_layers', 'precise_outer_wall', 'overhang_reverse',
     // Kiri's "adaptive" thin walls are the nearest thing but crash on some models, so not mapped
     'wall_generator'
 ];

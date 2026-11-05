@@ -23,7 +23,13 @@ function slicerPostProcessor(data, options) {
     const { groups, z } = data;
     const { post_args, useAssembly, zIndexes } = options;
     const { process, vaseMode } = post_args;
-    const { compInner, compOuter, pump } = post_args;
+    let { compInner, compOuter, pump } = post_args;
+    // elephant foot compensation (Orca): the first layer shrinks this much on
+    // every side (outlines in, holes out), against the squish on the bed
+    if (post_args.elephant > 0 && z <= post_args.firstTop + 0.001) {
+        compOuter = (compOuter || 0) + 2 * post_args.elephant;
+        compInner = (compInner || 0) + 2 * post_args.elephant;
+    }
     const { clipOffset, fillOffset, shellOffset  } = post_args;
 
     // pumping the shells will round sharp edges

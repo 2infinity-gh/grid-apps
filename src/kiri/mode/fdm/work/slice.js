@@ -219,8 +219,9 @@ export function sliceOne(settings, widget, onupdate, ondone) {
         isBrick = devel && process.sliceZInterleave,
         useAssembly = assembly,
         isConcurrent = threaded && minions.concurrent && !process.xray,
-        topLayers = process.sliceTopLayers || 0,
-        bottomLayers = process.sliceBottomLayers || 0,
+        // Orca's shell thickness: at least this many mm of solid top / bottom
+        topLayers = Math.max(process.sliceTopLayers || 0, process.sliceTopThickness > 0 ? Math.ceil(process.sliceTopThickness / process.sliceHeight - 0.01) : 0),
+        bottomLayers = Math.max(process.sliceBottomLayers || 0, process.sliceBottomThickness > 0 ? Math.ceil(process.sliceBottomThickness / process.sliceHeight - 0.01) : 0),
         vaseMode = process.sliceFillType === 'vase',
         metadata = widget.anno,
         maxtruder = Math.max(0, device.extruders.length - 1),
@@ -339,6 +340,8 @@ export function sliceOne(settings, widget, onupdate, ondone) {
         post_args: {
             compInner: sliceCompInner,
             compOuter: sliceCompOuter,
+            elephant: process.firstLayerElephant || 0,
+            firstTop: sliceHeightBase,
             shellOffset,
             fillOffset, // distance: top inset for sparse/solid infill
             clipOffset, // distance: create simpler clip offset for supports
@@ -724,8 +727,9 @@ export function sliceOne(settings, widget, onupdate, ondone) {
         profileStart("delta-project");
         forSlices(div[1].lo, div[1].hi, slice => {
             let params = slice.params || process;
-            topLayers = params.sliceTopLayers || 0;
-            bottomLayers = params.sliceBottomLayers || 0;
+            const layersOf = (n, mm) => Math.max(n || 0, mm > 0 ? Math.ceil(mm / (params.sliceHeight || process.sliceHeight) - 0.01) : 0);
+            topLayers = layersOf(params.sliceTopLayers, params.sliceTopThickness);
+            bottomLayers = layersOf(params.sliceBottomLayers, params.sliceBottomThickness);
             if (topLayers) projectFlats(slice, topLayers);
             if (bottomLayers) projectBridges(slice, bottomLayers);
             if (slice.flats) POLY.setZ(slice.flats, slice.z);

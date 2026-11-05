@@ -677,6 +677,28 @@ export function fdm_export(print, online, ondone, ondebug) {
             append(`;; --- layer ${layer} (${subst.height.toFixed(3)} @ ${subst.z.round(3)}) ---`);
         }
 
+        // Orca's cooling: the fan runs at its minimum on slow layers and
+        // speeds up to its maximum as the layer time drops toward the
+        // slow down time (filament profile first, then the process)
+        {
+            const fil = filamentFor(tool);
+            const fanMin = fil?.fanMin ?? process.outputFanMin;
+            const coolTime = fil?.fanLayerTime ?? process.outputFanLayerTime;
+            const slowTime = process.outputMinLayerTime || 0;
+            if (fanSpeed > 0 && fanMin >= 0 && coolTime > 0) {
+                let t = 0, lp;
+                for (const o of path) {
+                    if (o.point && lp && o.speed) t += lp.distTo2D(o.point) / o.speed;
+                    if (o.point) lp = o.point;
+                }
+                const min = Math.round(fanMin * 2.55);
+                const f = t >= coolTime ? min : t <= slowTime ? fanSpeed :
+                    min + (fanSpeed - min) * (coolTime - t) / Math.max(0.001, coolTime - slowTime);
+                fanSpeed = Math.round(Math.min(fanSpeed, Math.max(min, f)));
+                subst.fan_speed = subst.speed = fanSpeed;
+            }
+        }
+
         // layer temp and fan overrides at layer changes
         if (fanSpeed !== lastFanSpeed) {
             appendAllSub(gcodeFan);
