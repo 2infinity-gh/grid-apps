@@ -7,7 +7,7 @@
  */
 
 import { api } from './api.js';
-import { readPresets } from './filaments.js';
+import { readPresets, addFilamentPresets } from './filaments.js';
 import { KOBRA_X_BASE } from './orca-base.js';
 import { conf } from './conf/defaults.js';
 import { JSZip } from '../../ext/jszip-esm.js';
@@ -21,7 +21,9 @@ function hasBrim(p) {
 }
 
 function value(raw) {
-    const v = Array.isArray(raw) ? raw[0] : raw;
+    let v = Array.isArray(raw) ? raw[0] : raw;
+    // G-code config blocks list per filament values: "215,205", "PLA;PETG"
+    if (typeof v === 'string' && !v.includes('\n') && /[,;]/.test(v) && !/^".*"$/.test(v)) v = v.split(/[,;]/)[0].trim();
     if (v === undefined || v === null || v === 'nil' || v === '') return undefined;
     if (typeof v !== 'string' || v.endsWith('%')) return v;
     const n = Number(v);
@@ -95,6 +97,34 @@ const MAP = {
     ironing_flow:                 v => ({ outputIronFlow: pct(v) ?? v / 100 }),
     ironing_spacing:              v => ({ outputIronSpacing: v }),
     ironing_speed:                v => ({ outputIronSpeed: v }),
+    // retraction, wipe, cooling and temperatures (filament profiles override
+    // these per slot; the process keeps them for slots without a profile)
+    retraction_length:            v => ({ outputRetractDist: v }),
+    retraction_speed:             v => ({ outputRetractSpeed: v }),
+    retract_when_changing_layer:  v => ({ outputLayerRetract: v === 1 || v === 'true' || v === '1' }),
+    wipe_distance:                (v, p) => ({ outputRetractWipe: [1, '1', 'true'].includes(value(p.wipe)) ? v : 0 }),
+    slow_down_layer_time:         v => ({ outputMinLayerTime: v }),
+    slow_down_min_speed:          v => ({ outputMinSpeed: v }),
+    fan_max_speed:                v => ({ outputFanSpeed: Math.round(v * 2.55) }),
+    close_fan_the_first_x_layers: v => ({ outputFanLayer: v }),
+    nozzle_temperature:           v => ({ outputTemp: v }),
+    nozzle_temperature_initial_layer: v => ({ firstLayerNozzleTemp: v }),
+    textured_plate_temp:          v => ({ outputBedTemp: v }),
+    textured_plate_temp_initial_layer: v => ({ firstLayerBedTemp: v }),
+    filament_max_volumetric_speed: v => ({ outputMaxFlowrate: v }),
+    // shapes and extras
+    spiral_mode:                  v => [1, '1', 'true'].includes(v) ? { sliceFillType: 'vase' } : {},
+    draft_shield:                 v => ({ outputDraftShield: v === 'enabled' || v === 'limited' }),
+    raft_layers:                  v => ({ outputRaft: v > 0 }),
+    raft_contact_distance:        v => ({ outputRaftSpacing: v }),
+    // Orca: gap between support lines; Kiri: density
+    support_base_pattern_spacing: (v, p, n) => ({ sliceSupportDensity: Math.min(1, n / (n + v)) }),
+    // scarf seam: Orca's scarf length
+    seam_slope_type:              (v, p) => ({ outputScarfLength: v && v !== 'none' ? value(p.seam_slope_min_length) || 10 : 0 }),
+    // Orca offsets each side (+ grows the part / the hole); Kiri gives the
+    // change in size, and its outer value shrinks
+    xy_contour_compensation:      v => ({ sliceCompOuter: -2 * v }),
+    xy_hole_compensation:         v => ({ sliceCompInner: 2 * v }),
 };
 
 // Orca settings that matter for the result but have no Kiri counterpart
@@ -103,7 +133,6 @@ const KNOWN_UNMAPPED = [
     'sparse_infill_speed', 'top_surface_pattern', 'bottom_surface_pattern', 'brim_width', 'brim_type',
     'seam_gap', 'wipe_on_loops', 'only_one_wall_top', 'detect_overhang_wall', 'enable_arc_fitting',
     'outer_wall_line_width', 'inner_wall_line_width', 'sparse_infill_line_width', 'top_surface_line_width',
- 'xy_hole_compensation', 'xy_contour_compensation',
     'elefant_foot_compensation', 'fuzzy_skin', 'slow_down_layers', 'precise_outer_wall', 'overhang_reverse',
     // Kiri's "adaptive" thin walls are the nearest thing but crash on some models, so not mapped
     'wall_generator'
@@ -145,29 +174,47 @@ function gcodeConfig(text) {
     return cfg;
 }
 
+// the filament presets inside a resolved config (per filament lists), as
+// Orca-like presets for the filament library
+function configFilaments(cfg) {
+    const list = v => Array.isArray(v) ? v : typeof v === 'string' ? v.split(/;/).length > 1 ? v.split(';') : v.split(',') : [ v ];
+    const names = list(cfg.filament_settings_id || []).map(n => String(n).replace(/^"|"$/g, '').trim()).filter(n => n);
+    return names.map((name, i) => {
+        const json = { name, type: 'filament' };
+        for (const [key, raw] of Object.entries(cfg)) {
+            if (key === 'filament_settings_id') continue;
+            const vals = list(raw);
+            if (vals.length === names.length) json[key] = [ String(vals[i]).trim() ];
+        }
+        return json;
+    });
+}
+
 async function readProcessFiles(files) {
-    const presets = [], texts = [], skipped = [];
+    const presets = [], texts = [], skipped = [], filaments = [];
     for (const file of files) {
         const lower = file.name.toLowerCase();
         const base = file.name.replace(/\.[^.]+$/, '');
         if (lower.endsWith('.gcode')) {
             const cfg = gcodeConfig(await file.text());
             cfg ? presets.push(fromConfig(cfg, base)) : skipped.push(`${file.name} (no Orca settings)`);
+            if (cfg) filaments.push(...configFilaments(cfg));
         } else if (lower.endsWith('.3mf')) {
             const zip = await JSZip.loadAsync(file);
             const entry = zip.file('Metadata/project_settings.config');
             let cfg;
             try { cfg = entry && JSON.parse(await entry.async('string')); } catch { }
             cfg ? presets.push(fromConfig(cfg, base)) : skipped.push(`${file.name} (no Orca project settings)`);
+            if (cfg) filaments.push(...configFilaments(cfg));
         } else {
             texts.push(...await readPresets([ file ]));
         }
     }
-    return { presets, texts, skipped };
+    return { presets, texts, skipped, filaments };
 }
 
 export async function importProcesses(files) {
-    const { presets, texts, skipped } = await readProcessFiles(files);
+    const { presets, texts, skipped, filaments: fils } = await readProcessFiles(files);
     for (const text of texts) {
         let json;
         try { json = JSON.parse(text) } catch { skipped.push('not JSON'); continue; }
@@ -204,7 +251,10 @@ export async function importProcesses(files) {
         api.conf.save();
         api.devices.refresh();
     }
+    // the filaments the G-code / project was sliced with go to the library too
+    const filCount = fils.length ? addFilamentPresets(fils) : 0;
     const msg = [ `imported ${presets.length} process profile${presets.length === 1 ? '' : 's'}` ];
+    if (filCount) msg.push(`${filCount} filament profile${filCount === 1 ? '' : 's'}`);
     if (skipped.length) msg.push(`skipped: ${skipped.join(', ')}`);
     if (unmapped.size) msg.push(`not supported in Kiri: ${[...unmapped].join(', ')}`);
     api.show.alert(msg.join(' · '), 10);

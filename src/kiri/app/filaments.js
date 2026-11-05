@@ -150,6 +150,24 @@ export async function importFilaments(files) {
     return count;
 }
 
+// complete presets (from an Orca G-code or project) into the library,
+// replacing profiles of the same name; returns how many
+export function addFilamentPresets(presets) {
+    const fil = store();
+    const batch = presets.map(raw => ({ name: raw.name, raw }));
+    for (const raw of presets) {
+        const profile = resolve(raw, batch, fil.library);
+        delete profile.raw;
+        fil.library = fil.library.filter(p => p.name !== profile.name);
+        fil.library.push(profile);
+    }
+    fil.library.sort((a, b) => a.name.localeCompare(b.name));
+    autoAssign();
+    api.conf.save();
+    notify();
+    return presets.length;
+}
+
 // give unassigned slots the profile named like the filament the printer reports
 export function autoAssign() {
     const fil = store();
