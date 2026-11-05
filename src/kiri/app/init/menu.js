@@ -262,6 +262,38 @@ function modeTools(actions) {
     ];
 }
 
+// the drop menus open on hover, which sticks (or never comes) on touch
+// screens: a tap opens a menu, tapping its button again or picking an item
+// closes it; a mouse moving off a menu leaves hover in charge again
+function closeOnPick(root) {
+    if (root.dataset.closeOnPick) return;
+    root.dataset.closeOnPick = '1';
+    const menus = () => root.querySelectorAll('.top-menu > span');
+    const close = menu => { menu?.classList.remove('menu-open'); menu?.classList.add('menu-closed'); };
+    root.addEventListener('pointerdown', ev => {
+        const menu = ev.target.closest('.top-menu > span');
+        if (!menu || ev.target.closest('.top-menu-drop')) return;
+        if (menu.classList.contains('menu-open')) return close(menu);
+        menus().forEach(m => { if (m !== menu) close(m); });
+        menu.classList.remove('menu-closed');
+        menu.classList.add('menu-open');
+    });
+    root.addEventListener('click', ev => {
+        const item = ev.target.closest('.top-menu-drop .content > div');
+        // items with their own controls (inputs) stay open
+        if (item && !ev.target.closest('input, select')) close(item.closest('.top-menu > span'));
+    }, true);   // capture: item handlers stop the click from bubbling
+    root.addEventListener('pointerout', ev => {
+        if (ev.pointerType !== 'mouse') return;
+        const menu = ev.target.closest('.top-menu > span');
+        if (menu && !menu.contains(ev.relatedTarget)) menu.classList.remove('menu-closed', 'menu-open');
+    });
+    // a tap anywhere else closes an open menu
+    document.addEventListener('pointerdown', ev => {
+        if (!root.contains(ev.target)) root.querySelectorAll('.menu-open').forEach(close);
+    });
+}
+
 export const menubar = {
     build(actions = {}) {
         const menubarNode = $('menubar');
@@ -270,6 +302,7 @@ export const menubar = {
             return;
         }
         h.bind(menubarNode, content(actions));
+        closeOnPick(menubarNode);
         if (modeToolsNode) {
             h.bind(modeToolsNode, modeTools(actions));
         }

@@ -2566,3 +2566,10 @@ details[open] summary::after {
     position: relative;
     z-index: 40;
 }
+/* tapped open (touch), or picked / tapped again: shut until opened again */
+#menubar .top-menu > span.menu-open .top-menu-drop {
+    display: flex;
+}
+#menubar .top-menu > span.menu-closed .top-menu-drop {
+    display: none !important;
+}
