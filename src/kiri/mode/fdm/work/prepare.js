@@ -238,10 +238,16 @@ export async function fdm_prepare(widgets, settings, update) {
             }
         }
     }
-    // add support tool, if not already used
-    if (!extruders[sliceSupportNozzle]) {
-        extruders[sliceSupportNozzle] = {};
-        extcount++;
+    // support tool: 0 = the object's own (as Orca's "default"), n = slot n;
+    // only a separate support slot that is really used needs a purge block
+    const supportTool = widget => sliceSupportNozzle > 0 ? sliceSupportNozzle - 1 : (widget.anno.extruder ?? 0);
+    for (let widget of widgets) {
+        if (!(widget.slices || []).some(slice => slice.supports?.length)) continue;
+        const tool = supportTool(widget);
+        if (!extruders[tool]) {
+            extruders[tool] = {};
+            extcount++;
+        }
     }
 
     // determine size/location of purge blocks
@@ -555,7 +561,7 @@ export async function fdm_prepare(widgets, settings, update) {
                 nslice.height = slice.height;
                 nslice.index = slice.index;
                 nslice.supports = slice.supports;
-                nslice.extruder = sliceSupportNozzle;
+                nslice.extruder = supportTool(widget);
                 slices.push(nslice);
             }
         }

@@ -352,7 +352,8 @@ function exportGCodeDialog(gcode, sections, info, names) {
 
     function calcTime() {
         let floor = Math.floor,
-            time = floor(info.time),
+            // Klipper-style estimate from the G-code when there is one (estimate.js)
+            time = floor(info.estimate?.time ?? info.time),
             hours = floor(time / 3600),
             newtime = time - hours * 3600,
             mins = floor(newtime / 60),

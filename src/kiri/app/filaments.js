@@ -15,13 +15,13 @@ import { slotInfo, slotLabel, onSlots, loadSlots } from './slots.js';
 
 // fallbacks when a preset (or what it inherits) does not set a value
 const TYPE_DEFAULTS = {
-    PLA:  { temp: 210, tempFirst: 215, bed: 60,  fanMax: 100, fanOffLayers: 1, mvs: 15 },
-    PETG: { temp: 240, tempFirst: 245, bed: 70,  fanMax: 50,  fanOffLayers: 3, mvs: 12 },
-    ABS:  { temp: 250, tempFirst: 255, bed: 100, fanMax: 10,  fanOffLayers: 3, mvs: 15 },
-    ASA:  { temp: 255, tempFirst: 260, bed: 100, fanMax: 20,  fanOffLayers: 3, mvs: 15 },
-    TPU:  { temp: 225, tempFirst: 230, bed: 45,  fanMax: 100, fanOffLayers: 1, mvs: 3.6 },
-    PVA:  { temp: 210, tempFirst: 215, bed: 55,  fanMax: 100, fanOffLayers: 1, mvs: 10 },
-    PC:   { temp: 270, tempFirst: 270, bed: 110, fanMax: 20,  fanOffLayers: 3, mvs: 10 },
+    PLA:  { density: 1.24, temp: 210, tempFirst: 215, bed: 60,  fanMax: 100, fanOffLayers: 1, mvs: 15 },
+    PETG: { density: 1.27, temp: 240, tempFirst: 245, bed: 70,  fanMax: 50,  fanOffLayers: 3, mvs: 12 },
+    ABS:  { density: 1.04, temp: 250, tempFirst: 255, bed: 100, fanMax: 10,  fanOffLayers: 3, mvs: 15 },
+    ASA:  { density: 1.07, temp: 255, tempFirst: 260, bed: 100, fanMax: 20,  fanOffLayers: 3, mvs: 15 },
+    TPU:  { density: 1.21, temp: 225, tempFirst: 230, bed: 45,  fanMax: 100, fanOffLayers: 1, mvs: 3.6 },
+    PVA:  { density: 1.19, temp: 210, tempFirst: 215, bed: 55,  fanMax: 100, fanOffLayers: 1, mvs: 10 },
+    PC:   { density: 1.20, temp: 270, tempFirst: 270, bed: 110, fanMax: 20,  fanOffLayers: 3, mvs: 10 },
 };
 
 function typeDefaults(type = '') {
@@ -44,6 +44,8 @@ function fromOrca(json) {
         ? pick('pressure_advance') : undefined;
     const fields = {
         type: pick('filament_type'),
+        density: pick('filament_density'),
+        cost: pick('filament_cost'),
         color: pick('filament_colour'),
         temp: pick('nozzle_temperature'),
         tempFirst: pick('nozzle_temperature_initial_layer'),
@@ -247,7 +249,16 @@ const FIELDS = [
     [ 'fanMax', 'fan max', '%' ], [ 'fanOffLayers', 'fan off first', 'layers' ],
     [ 'retract', 'retraction length', 'mm' ], [ 'retractSpeed', 'retraction speed', 'mm/s' ],
     [ 'pa', 'pressure advance', '' ],
+    [ 'density', 'density', 'g/cm³' ], [ 'cost', 'price', 'per kg' ],
 ];
+
+// density (g/cm³) and price per kg of the filament a slot prints with
+export function slotMaterial(i) {
+    const name = slotProfileName(i);
+    const profile = name && store().library.find(p => p.name === name);
+    const type = profile?.type || slotInfo(i)?.material || 'PLA';
+    return { type, density: profile?.density || typeDefaults(type).density || 1.24, cost: profile?.cost };
+}
 
 export function setSlotProfile(slot, name) {
     store().slots[slot] = name;
@@ -409,4 +420,4 @@ export function onFilaments(fn) { listeners.push(fn) }
 
 onSlots(() => { autoAssign(); notify() });
 
-export const filaments = { show: showFilaments, import: importFilaments, slotProfileName, edit: editFilament, setSlot: setSlotProfile, onChange: onFilaments, library: () => store().library, fromPrinter };
+export const filaments = { show: showFilaments, import: importFilaments, slotProfileName, edit: editFilament, setSlot: setSlotProfile, onChange: onFilaments, library: () => store().library, fromPrinter, slotMaterial };

@@ -186,10 +186,11 @@ function setDeviceCode(code, devicename) {
 
         // add extruder selection buttons
         if (dev.extruders) {
-            let ext = api.lists.extruders = [];
+            // support tool choices: 0 = the object's own filament, n = slot n
+            let ext = api.lists.extruders = [{id:'0', name:'same as object'}];
             dev.internal = 0;
             for (let i=0; i<dev.extruders.length; i++) {
-                ext.push({id:i, name:i});
+                ext.push({id:i+1, name:`slot ${i+1}`});
             }
         }
 

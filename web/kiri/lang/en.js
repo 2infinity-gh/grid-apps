@@ -492,7 +492,7 @@ self.lang['en-us'] = {
     sp_xpnd_s:      "expand",
     sp_xpnd_l:      ["expand support area","beyond part boundary","in millimeters"],
     sp_nozl_s:      "tool",
-    sp_nozl_l:      ["in multi-extruder systems","the toolhead to use for","support material"],
+    sp_nozl_l:      ["in multi-extruder systems","the filament slot to use for","support material","same as object: no extra swaps"],
     sp_gtop_s:      "top z distance",
     sp_gtop_l:      ["gap between the top of the support","and the part resting on it","in millimeters, rounded up","to whole layers (0 = none)"],
     sp_gbot_s:      "bottom z distance",

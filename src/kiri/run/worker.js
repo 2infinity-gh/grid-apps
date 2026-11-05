@@ -587,7 +587,8 @@ const dispatch = {
             settings,
             segments,
             purges,
-            labels
+            labels,
+            estimate
         } = current.print;
 
         send.done({
@@ -601,7 +602,8 @@ const dispatch = {
                 settings,
                 segments,
                 purges,
-                labels
+                labels,
+                estimate
             }
         });
     },

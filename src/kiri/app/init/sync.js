@@ -20,6 +20,7 @@ import { toolbar } from '../toolbar.js';
 import { settingsSync } from '../settings-sync.js';
 import { processSave } from '../process-save.js';
 import { sidePanel } from '../side-panel.js';
+import { printInfo } from '../print-info.js';
 
 const { SETUP, LOCAL } = api.const;
 const { catalog, client, platform, selection, stats, ui } = api;
@@ -369,6 +370,7 @@ function setup_keybd_nav() {
     settingsSync.start();
     processSave.init();
     sidePanel.init();
+    printInfo.init();
     $('filament-profiles').onclick = (ev) => { ev.stopPropagation(); filaments.show() };
     $('set-filaments').onclick = (ev) => { ev.stopPropagation(); filaments.show() };
     $('set-orca-process').onclick = (ev) => { ev.stopPropagation(); processImport.pick() };

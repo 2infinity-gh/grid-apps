@@ -4,6 +4,7 @@ import { base, util } from '../../../../geo/base.js';
 import { getRangeParameters } from '../core/params.js';
 import { FDM } from './init-work.js';
 import { version } from '../../../../moto/license.js';
+import { estimator } from '../../../app/estimate.js';
 
 const { config } = base;
 const debug = false;
@@ -263,10 +264,13 @@ export function fdm_export(print, online, ondone, ondebug) {
         }
     }
     let loops = isBelt && rloops.length ? rloops : undefined;
+    // print time as Klipper will move it (acceleration, corners, swaps)
+    const estimate = estimator({ accel: process.outputAccel || 10000, squareCornerVelocity: 9 });
 
     function append(line) {
         if (line) {
             lines++;
+            estimate.feed(line);
             bytes += line.length;
             output.append(line);
         }
@@ -891,6 +895,7 @@ export function fdm_export(print, online, ondone, ondebug) {
     print.lines = lines;
     print.bytes = bytes + lines - 1;
     print.time = time;
+    print.estimate = estimate.result();
     print.labels = model_labels;
 
     if (debug) {

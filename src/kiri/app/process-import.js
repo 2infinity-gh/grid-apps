@@ -54,6 +54,8 @@ const MAP = {
     tree_support_branch_diameter_angle: v => ({ sliceSupportTreeGrow: v }),
     tree_support_branch_distance: v => ({ sliceSupportTreeSpacing: v }),
     support_top_z_distance:       v => ({ sliceSupportGapTop: v }),
+    // 0 = the object's own filament, n = filament n (Kiri's support tool works the same way)
+    support_filament:             v => ({ sliceSupportNozzle: v }),
     support_interface_top_layers: v => ({ sliceSupportInterface: v }),
     // Orca gives the gap between interface lines; Kiri a density (0.42 mm lines)
     support_interface_spacing:    v => ({ sliceSupportInterfaceDensity: Math.min(1, 0.42 / (0.42 + v)) }),
