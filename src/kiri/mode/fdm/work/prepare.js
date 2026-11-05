@@ -65,9 +65,14 @@ export async function fdm_prepare(widgets, settings, update) {
         settings.bounds = bounds;
     }
 
-    // TODO pick a widget with a slice on the first layer and use that nozzle
+    // brim, skirt and raft print with the filament of the lowest part, so
+    // they need no swap (and are not some other slot's material)
+    const baseWidget = widgets.filter(w => w.slices?.length).sort((a, b) => a.slices[0].z - b.slices[0].z)[0];
+    const baseTool = baseWidget?.anno?.extruder ?? 0;
+    let baseOut = false;
     // create brim, skirt, raft if specificed in FDM mode (code shared by laser)
     if (!isBelt && (process.outputBrimCount || useRaft)) {
+        baseOut = true;
         let brims = [],
             offset = process.outputBrimOffset || (useRaft ? 4 : 0);
 
@@ -80,14 +85,21 @@ export async function fdm_prepare(widgets, settings, update) {
             } else {
                 slices.push(widget.slices[0]);
             }
+            let withSupports = false;
             for (let slice of slices) {
                 // collect top outer polygons
                 if (slice.tops)
                 slice.tops.forEach(function(top) {
                     tops.push(top.poly.clone());
                 });
+                // a raft goes under the supports too: they start on the
+                // part's first layer, which is raised above the bed by the raft
+                if (useRaft && slice.supports?.length) {
+                    slice.supports.forEach(poly => tops.push(poly.clone()));
+                    withSupports = true;
+                }
             }
-            if (outputDraftShield) {
+            if (outputDraftShield || withSupports) {
                 tops = POLY.union(tops,1,true);
             }
             // nest and offset tops
@@ -123,6 +135,7 @@ export async function fdm_prepare(widgets, settings, update) {
 
             function raft(height, angle, spacing, speed, extrude, outline) {
                 let slice = newSlice(zoff + height / 2);
+                slice.extruder = baseTool;
                 for (let brim of rafts) {
                     // use first point of first brim as start point
                     if (printPoint === null) printPoint = brim.first();
@@ -184,6 +197,7 @@ export async function fdm_prepare(widgets, settings, update) {
             let brimStart = offset < nozzle * 2 ? newPoint(-bedWidth, -bedDepth, 0) : printPoint;
             printPoint = poly2polyEmit(polys, brimStart, (poly, index, count, startPoint) => {
                 return print.polyPrintPath(poly, startPoint, preout, {
+                    tool: baseTool,
                     rate: firstLayerRate,
                     onfirst: function(point) {
                         if (preout.length && point.distTo2D(startPoint) > 2) {
@@ -649,9 +663,9 @@ export async function fdm_prepare(widgets, settings, update) {
         return a.z - b.z;
     });
 
-    let firstTool;      // First extruder used (determines starting extruder)
+    let firstTool = baseOut ? baseTool : undefined;  // First extruder used (determines starting extruder)
     let lastWidget;     // Last widget printed (for retraction decisions)
-    let lastExt;        // Last extruder used (for minimizing tool changes)
+    let lastExt = firstTool;  // Last extruder used (for minimizing tool changes)
     let lastOut;        // Last output slice (for tracking state)
 
     print.zmax = zmax;
