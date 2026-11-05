@@ -588,7 +588,8 @@ const dispatch = {
             segments,
             purges,
             labels,
-            estimate
+            estimate,
+            layerZ
         } = current.print;
 
         send.done({
@@ -603,7 +604,8 @@ const dispatch = {
                 segments,
                 purges,
                 labels,
-                estimate
+                estimate,
+                layerZ
             }
         });
     },

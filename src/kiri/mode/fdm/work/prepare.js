@@ -279,9 +279,13 @@ export async function fdm_prepare(widgets, settings, update) {
             extcount++;
         }
     }
-    // add tools used by colour painted regions
+    // add tools used by colour painted regions and colour by height
     for (let widget of widgets) {
         for (let slice of widget.slices || []) {
+            if (slice.extruder >= 0 && !extruders[slice.extruder]) {
+                extruders[slice.extruder] = {};
+                extcount++;
+            }
             for (let top of slice.tops || []) {
                 if (top.tool >= 0 && !extruders[top.tool]) {
                     extruders[top.tool] = {};
@@ -924,6 +928,8 @@ export async function fdm_prepare(widgets, settings, update) {
 
         // Append completed layer to output array
         if (layerout.length) {
+            // top of this layer in the objects' own z (colour by height picks it)
+            layerout.wz = (layer.z + (layer.slices[0]?.height || 0) / 2).round(3);
             output.append(layerout);
         }
 
@@ -942,6 +948,7 @@ export async function fdm_prepare(widgets, settings, update) {
     }
 
     print.output = output;
+    print.layerZ = output.map(l => l.wz ?? null);
     print.firstTool = firstTool;
 
     // post-process for base extrusions (touching the bed)

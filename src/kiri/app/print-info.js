@@ -80,6 +80,8 @@ function calculate() {
     client.export(api.conf.get(), () => {}, (output, error) => {
         if (mine !== run) return;
         show(error ? undefined : output?.estimate);
+        // top z per layer, for colour by height on the slider
+        api.event.emit('print.layers', error ? null : output?.layerZ);
     });
 }
 

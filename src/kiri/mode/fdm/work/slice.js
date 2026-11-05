@@ -980,6 +980,19 @@ export function sliceOne(settings, widget, onupdate, ondone) {
             slice.widget = widget;
         }
 
+        // colour by height (set in preview, like Orca's filament change at a
+        // layer): from the layer whose top reaches z on, the parts not painted
+        // otherwise print with that slot
+        const heights = (metadata.heights || []).filter(c => c.z > 0 && c.tool >= 0).sort((a, b) => a.z - b.z);
+        if (heights.length) for (let slice of slices) {
+            const top = slice.z + (slice.height || sliceHeight) / 2;
+            let tool = extruder;
+            for (const c of heights) if (top >= c.z - 0.001) tool = c.tool;
+            if (tool === extruder) continue;
+            slice.extruder = tool;
+            for (const t of slice.tops) if (t.tool === undefined || t.tool === extruder) t.tool = tool;
+        }
+
         // process solid layers (top/bottom)
         await processSolidLayers(0.10, 0.20);
 

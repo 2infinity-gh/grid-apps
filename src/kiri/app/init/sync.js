@@ -21,6 +21,7 @@ import { settingsSync } from '../settings-sync.js';
 import { processSave } from '../process-save.js';
 import { sidePanel } from '../side-panel.js';
 import { printInfo } from '../print-info.js';
+import { heightTools } from '../height-tools.js';
 
 const { SETUP, LOCAL } = api.const;
 const { catalog, client, platform, selection, stats, ui } = api;
@@ -371,6 +372,7 @@ function setup_keybd_nav() {
     processSave.init();
     sidePanel.init();
     printInfo.init();
+    heightTools.init();
     $('filament-profiles').onclick = (ev) => { ev.stopPropagation(); filaments.show() };
     $('set-filaments').onclick = (ev) => { ev.stopPropagation(); filaments.show() };
     $('set-orca-process').onclick = (ev) => { ev.stopPropagation(); processImport.pick() };
