@@ -158,15 +158,27 @@ function renderPanel() {
         }
         const size = compact ? types : row();
         const slider = el('input', `display:block;flex:1;min-width:${compact ? 60 : 120}px`);
+        // slider and a number field (decimals) show the same size: for a band
+        // its height, twice the brush radius
+        const k = band ? 2 : 1;
         slider.type = 'range';
-        slider.min = 0.5; slider.max = 10; slider.step = 0.5;
-        slider.value = colorPaint.getBrush();
-        // a band is twice the brush radius high
-        const shown = () => `${(colorPaint.getBrush() * (band ? 2 : 1)).round(1)} mm`;
-        const value = el('span', `display:inline-block;min-width:${compact ? 38 : 44}px;text-align:right`, shown());
-        value.title = band ? 'height of the band' : 'pen size';
-        slider.oninput = () => { colorPaint.setBrush(parseFloat(slider.value)); value.textContent = shown(); };
-        size.append(slider, value);
+        slider.min = 0.1; slider.max = 20; slider.step = 0.1;
+        slider.value = colorPaint.getBrush() * k;
+        const value = el('input', `display:inline-block;width:${compact ? 50 : 56}px;padding:3px;font:12px sans-serif;text-align:right`);
+        value.type = 'number';
+        value.inputMode = 'decimal';
+        value.min = 0.1; value.max = 20; value.step = 0.1;
+        value.value = (colorPaint.getBrush() * k).round(2);
+        value.title = band ? 'height of the band (mm)' : 'pen size (mm)';
+        slider.oninput = () => { colorPaint.setBrush(parseFloat(slider.value) / k); value.value = (colorPaint.getBrush() * k).round(2); };
+        value.onchange = () => {
+            const v = parseFloat(String(value.value).replace(',', '.'));
+            if (!(v > 0)) { value.value = (colorPaint.getBrush() * k).round(2); return; }
+            colorPaint.setBrush(v / k);
+            value.value = slider.value = (colorPaint.getBrush() * k).round(2);
+        };
+        value.onkeydown = ev => ev.stopPropagation();
+        size.append(slider, value, el('span', 'color:#777', 'mm'));
         if (compact) {
             const clear = button('', () => colorPaint.clear(), 'padding:4px 7px;color:#c62828');
             clear.appendChild(el('i', '')).className = 'fas fa-trash-can';

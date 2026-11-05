@@ -15,7 +15,7 @@ import { avgc } from '../core/utils.js';
 import { slotColor, slotLabel } from './slots.js';
 import { colorSchemeRegistry } from './color/schemes.js';
 
-const MIN_RADIUS = 0.5;
+const MIN_RADIUS = 0.05;   // a height range band can be one 0.1 mm layer
 const MAX_RADIUS = 20;
 
 let painting = null;    // { tool, erase, alert } while the brush is active
@@ -146,7 +146,7 @@ export function onPaintChange(fn) {
 }
 
 export function setBrush(radius) {
-    brush = Math.min(MAX_RADIUS, Math.max(MIN_RADIUS, radius)).round(1);
+    brush = Math.min(MAX_RADIUS, Math.max(MIN_RADIUS, radius)).round(3);
     if (painting) showHint();
     notify();
 }
