@@ -112,6 +112,12 @@ const MAP = {
     textured_plate_temp:          v => ({ outputBedTemp: v }),
     textured_plate_temp_initial_layer: v => ({ firstLayerBedTemp: v }),
     filament_max_volumetric_speed: v => ({ outputMaxFlowrate: v }),
+    // flow: Orca's overall ratio times its per feature ratios (the filament's
+    // own flow ratio is applied per slot on top, as in Orca)
+    print_flow_ratio:             (v, p) => {
+        const f = k => (value(p[k]) ?? 1) * v;
+        return { outputShellMult: f('outer_wall_flow_ratio'), outputFillMult: f('internal_solid_infill_flow_ratio'), outputSparseMult: f('sparse_infill_flow_ratio') };
+    },
     // shapes and extras
     spiral_mode:                  v => [1, '1', 'true'].includes(v) ? { sliceFillType: 'vase' } : {},
     draft_shield:                 v => ({ outputDraftShield: v === 'enabled' || v === 'limited' }),

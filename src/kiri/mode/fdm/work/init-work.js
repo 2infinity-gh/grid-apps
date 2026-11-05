@@ -9,11 +9,13 @@ import { fdm_export } from './export.js';
 // fil = filament diameter
 // slice = slice height
 function extrudePerMM(noz, fil, slice) {
-    // if (isNaN(noz)) console.trace({ noz });
-    // if (isNaN(fil)) console.trace({ fil });
-    // if (isNaN(slice)) console.trace({ slice });
-    // (ratio of nozzle to filament) * (ratio of slice to nozzle)
-    return ((Math.PI * util.sqr(noz / 2)) / (Math.PI * util.sqr(fil / 2))) * (slice / noz);
+    // the bead's cross section as Orca / Prusa compute it: a rectangle of the
+    // line width with rounded sides (width - height) * height + pi * (height / 2)^2;
+    // the old circle-based formula gave ~13% less at 0.42 x 0.2
+    const area = noz > slice ?
+        (noz - slice) * slice + Math.PI * util.sqr(slice / 2) :
+        Math.PI * util.sqr(noz / 2) * (slice / noz);
+    return area / (Math.PI * util.sqr(fil / 2));
 };
 
 // dist = distance between extrusion points
