@@ -99,9 +99,15 @@ function contactPoints(polys, spacing) {
             const cx = (b.minx + b.maxx) / 2, cy = (b.miny + b.maxy) / 2;
             if (insidePoly(poly, cx, cy)) out.push({ x: cx, y: cy });
             else {
-                // thin or curved area: its first point is still on it
-                const p = poly.points[0];
-                out.push({ x: p.x, y: p.y });
+                // thin or curved area (the ring under a ball's overhang): points
+                // along its outline, one per grid spacing
+                const pts = poly.points;
+                let walked = spacing;
+                for (let i = 0; i < pts.length; i++) {
+                    const a = pts[i], c = pts[(i + 1) % pts.length];
+                    if (walked >= spacing) { out.push({ x: a.x, y: a.y }); walked = 0; }
+                    walked += Math.hypot(c.x - a.x, c.y - a.y);
+                }
             }
         }
     }
@@ -147,9 +153,19 @@ export function treeSupports({ stack, process, lineWidth, newPoint, newPolygon, 
 
         // 3. move the branches for the layer below: toward a neighbour, away from the model
         const model2 = models[i + 1] = obstacle(below.clips);
+        // the bare part (clips are the part grown by the support xy distance)
+        const part2 = obstacle(below.topPolys ? below.topPolys() : below.clips);
         const clear = n => {
             const hit = model2.probe(n.x, n.y, n.r + margin + step);
             return !hit.inside && hit.dist >= n.r + margin;
+        };
+        // a branch only ends (rests on the model) when its centre would be on
+        // the bare part; inside the xy distance it keeps being pushed out (the
+        // trim afterwards cuts off what is too close), and the part below a
+        // gentle overhang (a ball's underside) moves away from it anyway
+        const free = n => {
+            const hit = part2.probe(n.x, n.y, lineWidth);
+            return !hit.inside && hit.dist >= lineWidth / 4;
         };
         for (const n of nodes) {
             // organic tips drop straight first, then lean more and more
@@ -165,7 +181,7 @@ export function treeSupports({ stack, process, lineWidth, newPoint, newPolygon, 
                 const move = Math.min(need, budget);
                 n.x += ux * move; n.y += uy * move;
                 budget -= move;
-                if (!clear(n)) { n.dead = true; continue; }   // rests on the model
+                if (!free(n)) { n.dead = true; continue; }   // rests on the model
             }
             // drift toward the nearest neighbour to merge into a trunk
             let near, nd = Infinity;

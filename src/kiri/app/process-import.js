@@ -10,6 +10,11 @@ import { readPresets } from './filaments.js';
 
 const pct = v => typeof v === 'string' && v.endsWith('%') ? parseFloat(v) / 100 : undefined;
 
+function hasBrim(p) {
+    const type = String(value(p.brim_type) ?? 'auto_brim');
+    return type !== 'no_brim' && (value(p.brim_width) || 0) > 0;
+}
+
 function value(raw) {
     const v = Array.isArray(raw) ? raw[0] : raw;
     if (v === undefined || v === null || v === 'nil' || v === '') return undefined;
@@ -41,8 +46,14 @@ const MAP = {
     initial_layer_speed:          v => ({ firstLayerRate: v }),
     initial_layer_infill_speed:   v => ({ firstLayerFillRate: v }),
     z_hop:                        v => ({ zHopDistance: v }),
-    skirt_loops:                  v => ({ outputBrimCount: v }),
-    skirt_distance:               v => ({ outputBrimOffset: v }),
+    // Kiri has one first-layer outline setting: loops at an offset from the
+    // part; offset 0 makes it a brim. An Orca brim wins over its skirt.
+    skirt_loops:                  (v, p) => hasBrim(p) ? {} : { outputBrimCount: v },
+    skirt_distance:               (v, p) => hasBrim(p) ? {} : { outputBrimOffset: v },
+    brim_width:                   (v, p) => hasBrim(p) ? {
+        outputBrimCount: Math.max(1, Math.round(v / (value(p.initial_layer_line_width) || value(p.line_width) || 0.42))),
+        outputBrimOffset: value(p.brim_object_gap) || 0
+    } : {},
     enable_support:               (v, p) => {
         const type = String(value(p.support_type) ?? '');
         const organic = String(value(p.support_style) ?? '') === 'tree_organic';

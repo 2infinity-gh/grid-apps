@@ -594,7 +594,8 @@ export function sliceOne(settings, widget, onupdate, ondone) {
         // tree supports: branches grown down from the overhangs (tree-support.js)
         // instead of the shadow projected straight down
         let organic = process.sliceSupportType === 'organic';
-        let tree = organic || process.sliceSupportType === 'tree' || (process.sliceSupportTree && !manual);
+        // (the old sliceSupportTree checkbox is gone: profiles may still carry it)
+        let tree = organic || process.sliceSupportType === 'tree';
         if (tree) {
             treeSupports({ stack, process, lineWidth, newPoint, newPolygon, POLY, organic,
                 progress: p => trackupdate(p, div[1].lo, div[1].hi, "tree support") });
