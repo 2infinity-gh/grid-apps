@@ -1,18 +1,23 @@
 /**
  * Import OrcaSlicer / Anycubic Slicer Next process presets as Kiri FDM
- * process profiles. User presets usually hold only their overrides plus
- * "inherits", so each import starts from the current process and applies
- * what the preset (and presets it inherits from within the import) sets.
+ * process profiles. User presets hold only their differences from a parent
+ * ("inherits"): the parent comes from the same import, or for the Kobra X
+ * system presets from the built-in base (orca-base.js). Orca G-code and 3MF
+ * projects carry the complete, resolved settings and import as they are.
  */
 
 import { api } from './api.js';
 import { readPresets } from './filaments.js';
+import { KOBRA_X_BASE } from './orca-base.js';
+import { conf } from './conf/defaults.js';
+import { JSZip } from '../../ext/jszip-esm.js';
 
 const pct = v => typeof v === 'string' && v.endsWith('%') ? parseFloat(v) / 100 : undefined;
 
+// Orca's auto brim decides per object (mostly none): Kiri only takes an explicit brim
 function hasBrim(p) {
     const type = String(value(p.brim_type) ?? 'auto_brim');
-    return type !== 'no_brim' && (value(p.brim_width) || 0) > 0;
+    return type !== 'no_brim' && type !== 'auto_brim' && (value(p.brim_width) || 0) > 0;
 }
 
 function value(raw) {
@@ -112,15 +117,57 @@ function isProcessPreset(j) {
 
 // a preset's own values merged over what it inherits from within the import
 function flatten(json, batch, depth = 0) {
+    if (json.complete) return json;
     const plain = json.inherits && String(json.inherits).replace(/\s*@.*$/, '');
     const parent = depth < 8 && batch.find(j => j !== json && (j.name === json.inherits || j.name === plain));
-    return { ...(parent ? flatten(parent, batch, depth + 1) : {}), ...json };
+    if (parent) return { ...flatten(parent, batch, depth + 1), ...json };
+    // a system parent that is not in the import
+    const base = /kobra\s*x/i.test(String(json.inherits || json.name || '')) ? KOBRA_X_BASE : {};
+    return { ...base, ...json };
+}
+
+// the resolved settings in an Orca G-code's config block (or a project's
+// Metadata/project_settings.config), as a complete preset
+function fromConfig(cfg, fallback) {
+    const name = String(value(cfg.print_settings_id) || fallback).replace(/\(.*\.3mf\)$/, '').trim();
+    return { ...cfg, name, complete: true };
+}
+
+function gcodeConfig(text) {
+    const start = text.indexOf('; CONFIG_BLOCK_START');
+    if (start < 0) return null;
+    const cfg = {};
+    for (const line of text.substring(start).split('\n')) {
+        const m = line.match(/^; (\w+) = (.*)$/);
+        if (m) cfg[m[1]] = m[2].trim();
+        if (line.startsWith('; CONFIG_BLOCK_END')) break;
+    }
+    return cfg;
+}
+
+async function readProcessFiles(files) {
+    const presets = [], texts = [], skipped = [];
+    for (const file of files) {
+        const lower = file.name.toLowerCase();
+        const base = file.name.replace(/\.[^.]+$/, '');
+        if (lower.endsWith('.gcode')) {
+            const cfg = gcodeConfig(await file.text());
+            cfg ? presets.push(fromConfig(cfg, base)) : skipped.push(`${file.name} (no Orca settings)`);
+        } else if (lower.endsWith('.3mf')) {
+            const zip = await JSZip.loadAsync(file);
+            const entry = zip.file('Metadata/project_settings.config');
+            let cfg;
+            try { cfg = entry && JSON.parse(await entry.async('string')); } catch { }
+            cfg ? presets.push(fromConfig(cfg, base)) : skipped.push(`${file.name} (no Orca project settings)`);
+        } else {
+            texts.push(...await readPresets([ file ]));
+        }
+    }
+    return { presets, texts, skipped };
 }
 
 export async function importProcesses(files) {
-    const texts = await readPresets(files);
-    const presets = [];
-    const skipped = [];
+    const { presets, texts, skipped } = await readProcessFiles(files);
     for (const text of texts) {
         let json;
         try { json = JSON.parse(text) } catch { skipped.push('not JSON'); continue; }
@@ -134,7 +181,9 @@ export async function importProcesses(files) {
     let last;
     for (const raw of presets) {
         const preset = flatten(raw, presets);
-        const proc = structuredClone(set.process);
+        // Kiri's own defaults for what Orca has no setting for, never the
+        // values of whatever profile happens to be active
+        const proc = structuredClone(conf.defaults[mode.toLowerCase()]?.p || set.process);
         for (const [key, rawValue] of Object.entries(preset)) {
             const v = value(rawValue);
             if (v === undefined) continue;
@@ -166,7 +215,7 @@ export function pickProcessFiles() {
     const input = document.createElement('input');
     input.type = 'file';
     input.multiple = true;
-    input.accept = '.json,.zip';
+    input.accept = '.json,.zip,.3mf,.gcode';
     input.style.display = 'none';
     input.id = 'process-import-input';
     input.onchange = () => { importProcesses([...input.files]); input.remove(); };
