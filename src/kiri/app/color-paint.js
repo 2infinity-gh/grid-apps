@@ -5,6 +5,8 @@
  * coordinates: { point: {x,y,z}, radius, tool }. The slicer assigns the
  * volume inside each sphere to that filament slot (later strokes win), the
  * viewer draws the surface inside each sphere in that slot's colour.
+ * Height range strokes (Orca's "height range" tool) add band: true: the whole
+ * object between point.z - radius and point.z + radius.
  */
 
 import { THREE } from '../../ext/three.js';
@@ -20,6 +22,7 @@ let painting = null;    // { tool, erase, alert } while the brush is active
 let listeners = [];     // notified when painting starts/stops or changes
 let brush = 2;          // brush radius in mm
 let down = null;        // widget under the pointer when the stroke started
+let shape = 'sphere';   // brush: 'sphere' or 'band' (height range)
 
 // colour shown for a slot: the printer's filament colour, else Kiri's extruder colour
 function toolColor(tool) {
@@ -37,7 +40,8 @@ function paintTexture(paint) {
     const data = new Float32Array(width * height * 4);
     paint.forEach((rec, i) => {
         const c = toolColor(rec.tool);
-        data.set([rec.point.x, rec.point.y, rec.point.z, rec.radius], i * 8);
+        // a negative radius marks a height range band
+        data.set([rec.point.x, rec.point.y, rec.point.z, rec.band ? -rec.radius : rec.radius], i * 8);
         data.set([c.r, c.g, c.b, 1], i * 8 + 4);
     });
     const texture = new THREE.DataTexture(data, width, height, THREE.RGBAFormat, THREE.FloatType);
@@ -84,7 +88,7 @@ export function updateColorOverlay(widget) {
                 int t = i * 2;
                 vec2 uv0 = vec2((float(t % int(cpTexSize.x)) + 0.5) / cpTexSize.x, (float(t / int(cpTexSize.x)) + 0.5) / cpTexSize.y);
                 vec4 sphere = texture2D(cpTexture, uv0);
-                if (distance(vCpPos, sphere.xyz) <= sphere.w) {
+                if (sphere.w < 0.0 ? abs(vCpPos.z - sphere.z) <= -sphere.w : distance(vCpPos, sphere.xyz) <= sphere.w) {
                     int c = t + 1;
                     vec2 uv1 = vec2((float(c % int(cpTexSize.x)) + 0.5) / cpTexSize.x, (float(c / int(cpTexSize.x)) + 0.5) / cpTexSize.y);
                     cpColor = texture2D(cpTexture, uv1).rgb;
@@ -107,17 +111,13 @@ function addPaint(point, widget, erase) {
     // three coordinates (Y up) to widget coordinates (Z up), as for support paint
     const p = { x: point.x - pos.x, y: -point.z - pos.y, z: point.y - pos.z };
     const paint = widget.anno.cpaint = widget.anno.cpaint || [];
-    if (erase) {
-        // erasing paints the widget's own slot, which the slicer treats as unpainted
-        const tool = widget.anno.extruder || 0;
-        const last = paint.peek();
-        if (last && last.tool === tool && dist(last.point, p) < brush / 2) return;
-        paint.push({ point: p, radius: brush, tool });
-    } else {
-        const last = paint.peek();
-        if (last && last.tool === painting.tool && last.radius === brush && dist(last.point, p) < brush / 2) return;
-        paint.push({ point: p, radius: brush, tool: painting.tool });
-    }
+    // erasing paints the widget's own slot, which the slicer treats as unpainted
+    const tool = erase ? widget.anno.extruder || 0 : painting.tool;
+    const band = shape === 'band';
+    const last = paint.peek();
+    const near = band ? Math.abs(last?.point.z - p.z) < brush / 2 : last && dist(last.point, p) < brush / 2;
+    if (last && last.tool === tool && !!last.band === band && last.radius === brush && near) return;
+    paint.push(band ? { point: p, radius: brush, tool, band } : { point: p, radius: brush, tool });
     updateColorOverlay(widget);
     api.space.update();
 }
@@ -128,10 +128,11 @@ function dist(a, b) {
 
 function showHint() {
     api.hide.alert(painting.alert);
+    const size = shape === 'band' ? `height range ${(brush * 2).round(1)}mm` : `brush ${brush}mm`;
     painting.alert = api.show.alert(
         painting.erase ?
-            `erasing colour paint · brush ${brush}mm · [ ] size · esc stops` :
-            `painting ${slotLabel(painting.tool)} · brush ${brush}mm · [ ] size · shift erases · esc stops`, 1000);
+            `erasing colour paint · ${size} · [ ] size · esc stops` :
+            `painting ${slotLabel(painting.tool)} · ${size} · [ ] size · shift erases · esc stops`, 1000);
 }
 
 function notify() {
@@ -150,6 +151,16 @@ export function setBrush(radius) {
 
 export function getBrush() {
     return brush;
+}
+
+export function setShape(next) {
+    shape = next === 'band' ? 'band' : 'sphere';
+    if (painting) showHint();
+    notify();
+}
+
+export function getShape() {
+    return shape;
 }
 
 export function paintStart(tool, opt = {}) {
@@ -327,11 +338,11 @@ export function initColorPaint() {
             rec.point.x *= x;
             rec.point.y *= y;
             rec.point.z *= z;
-            rec.radius *= (x + y + z) / 3;
+            rec.radius *= rec.band ? z : (x + y + z) / 3;
         }
         updateColorOverlay(widget);
     });
 }
 
 export const colorPaint = { init: initColorPaint, start: paintStart, done: paintDone, clear: paintClear, refresh: refreshOverlays,
-    onChange: onPaintChange, setBrush, getBrush, isPainting };
+    onChange: onPaintChange, setBrush, getBrush, setShape, getShape, isPainting };

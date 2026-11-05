@@ -133,14 +133,33 @@ function renderPanel() {
         swatches.appendChild(eraser);
         body.appendChild(swatches);
 
-        title('Pen size');
+        // tool type, as in Orca: a round brush, or a height range (a band
+        // across the whole object around where you click)
+        title('Tool type');
+        const types = row();
+        const band = colorPaint.getShape() === 'band';
+        for (const [shape, label, tip] of [
+            [ 'sphere', '● brush', 'paint where you drag' ],
+            [ 'band', '☰ height range', 'click or drag over the model: the whole object at that height gets the colour' ],
+        ]) {
+            const on = (shape === 'band') === band;
+            const b = button(label, () => { colorPaint.setShape(shape); render(); },
+                on ? 'background:#3b82f6;color:#fff;border-color:#3b82f6' : '');
+            b.title = tip;
+            types.appendChild(b);
+        }
+        body.appendChild(types);
+
+        title(band ? 'Height' : 'Pen size');
         const size = row();
         const slider = el('input', 'display:block;flex:1;min-width:120px');
         slider.type = 'range';
         slider.min = 0.5; slider.max = 10; slider.step = 0.5;
         slider.value = colorPaint.getBrush();
-        const value = el('span', 'display:inline-block;min-width:44px;text-align:right', `${colorPaint.getBrush()} mm`);
-        slider.oninput = () => { colorPaint.setBrush(parseFloat(slider.value)); value.textContent = `${colorPaint.getBrush()} mm`; };
+        // a band is twice the brush radius high
+        const shown = () => `${(colorPaint.getBrush() * (band ? 2 : 1)).round(1)} mm`;
+        const value = el('span', 'display:inline-block;min-width:44px;text-align:right', shown());
+        slider.oninput = () => { colorPaint.setBrush(parseFloat(slider.value)); value.textContent = shown(); };
         size.append(slider, value);
         body.appendChild(size);
 

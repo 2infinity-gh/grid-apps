@@ -104,7 +104,8 @@ function slicerPostProcessor(data, options) {
 
 /**
  * Split layer polygons by colour paint. Paint records are spheres
- * { point, radius, tool } in widget coordinates; strokes apply in order so
+ * { point, radius, tool } in widget coordinates (or, with band, the whole
+ * layer within radius of point.z); strokes apply in order so
  * a later stroke wins where they overlap, and painting the widget's own
  * tool erases. Returns top bundles { poly, tool } for layerProcessTop().
  */
@@ -126,12 +127,17 @@ function splitColorTops(tops, z, paint, baseTool) {
         }
         batch = [];
     };
-    for (const { point, radius, tool } of paint) {
+    for (const { point, radius, tool, band } of paint) {
         const dz = Math.abs(z - point.z);
         if (dz >= radius) continue;
         if (tool !== batchTool) {
             flush();
             batchTool = tool;
+        }
+        if (band) {
+            // height range: the whole layer
+            batch.push(...tops.map(p => p.clone(true)));
+            continue;
         }
         // cross-section of the paint sphere at this layer
         batch.push(newPolygon().centerCircle(point, Math.sqrt(radius * radius - dz * dz), 24).setZ(z));
