@@ -175,12 +175,11 @@ const MAP = {
 
 // Orca settings that matter for the result but have no Kiri counterpart
 const KNOWN_UNMAPPED = [
- 'bottom_surface_pattern', 'brim_width', 'brim_type',
-    'seam_gap', 'wipe_on_loops', 'detect_overhang_wall',
-    'top_surface_line_width',
- 'slow_down_layers', 'precise_outer_wall', 'overhang_reverse',
-    // Kiri's "adaptive" thin walls are the nearest thing but crash on some models, so not mapped
-    'wall_generator'
+    'bottom_surface_pattern', 'brim_width', 'brim_type', 'seam_gap', 'wipe_on_loops', 'detect_overhang_wall',
+    'top_surface_line_width', 'slow_down_layers', 'precise_outer_wall', 'overhang_reverse',
+    // Orca's default Arachne: Kiri's adaptive walls are the nearest, but far too
+    // slow on detailed models in the browser, so imports keep the normal walls
+    'wall_generator',
 ];
 
 function isProcessPreset(j) {

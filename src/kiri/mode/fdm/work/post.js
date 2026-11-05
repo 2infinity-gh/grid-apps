@@ -397,6 +397,7 @@ function thin_type_3(params) {
             i === 0 ? maxR : maxF,
         {
             shell: n.shell,
+            deadline: params.deadline,
             lines,
             polys,
             remain: next,
@@ -471,6 +472,7 @@ function trace_noodle(noodle, noodleWidth, minR, midR, maxR, opt = {}) {
     });
 
     while (inset && inset.length) {
+        if (opt.deadline && Date.now() > opt.deadline) throw new Error('adaptive walls: layer too slow');
         dtotl += dstep;
         for (let p of POLY.flatten(inset, [])) {
             p.dtotl = dtotl;
@@ -645,6 +647,7 @@ function trace_noodle(noodle, noodleWidth, minR, midR, maxR, opt = {}) {
             let trace = [];
             trace.shell = shell + sadd;
             poly.segment(minR,  true).forEachSegment((p1, p2) => {
+                if (opt.deadline && Date.now() > opt.deadline) throw new Error('adaptive walls: layer too slow');
                 let np1 = { x:(p1.x+p2.x)/2, y:(p1.y+p2.y)/2 };
                 let len = pointDist(p1, p2);
                 let dx = (p1.x - p2.x) / len;
@@ -817,10 +820,16 @@ export function layerProcessTop(z, top, count, offset1, offsetN, fillOffset, opt
                     break;
                 case "adaptive":
                     try {
-                        ret = thin_type_3({ z, top, count, offsetN });
+                        // variable width walls (Kiri's answer to Arachne); a layer
+                        // that takes too long (very detailed outlines) falls back
+                        // to the normal walls instead of stalling the slice
+                        ret = thin_type_3({ z, top, count, offsetN, deadline: Date.now() + 2000 });
                         break;
                     } catch (e) {
-                        console.log('adaptive layer failed. falling back to basic.', e);
+                        console.log('adaptive layer failed. falling back to basic.', e.message);
+                        top.thin_wall = undefined;
+                        top.thin_sort = undefined;
+                        top.thin_fill = [];
                         ttype = "basic";
                     }
                 case "basic":
