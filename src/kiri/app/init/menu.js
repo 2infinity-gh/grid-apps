@@ -117,7 +117,7 @@ function scalePanel(actions) {
 
 function content(actions) {
     return [
-        div({ class: 'menubar-appname el-app-hide', _: 'Kiri:Moto' }),
+        div({ class: 'menubar-appname el-app-hide', title: 'Korca: Kiri:Moto for the Kobra X, the Orca way', _: 'Korca' }),
         div({ class: 'menubar-separator el-app-hide' }),
         div({ class: 'f-row top-menu grow' }, [
             topMenu(actions, {
