@@ -128,6 +128,8 @@ function dist(a, b) {
 
 function showHint() {
     api.hide.alert(painting.alert);
+    // phones: the paint panel shows all this, the hint would only cover the model
+    if (window.innerWidth < 760) return;
     const size = shape === 'band' ? `height range ${(brush * 2).round(1)}mm` : `brush ${brush}mm`;
     painting.alert = api.show.alert(
         painting.erase ?

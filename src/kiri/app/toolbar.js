@@ -115,59 +115,73 @@ function renderPanel() {
     const row = () => el('div', 'display:flex;flex-direction:row;gap:5px;align-items:center;flex-wrap:wrap');
 
     if (tool === 'paint') {
-        title('Filaments');
+        // phones: two compact rows, no headings or help, so it covers little
+        const compact = window.innerWidth < 760;
+        const band = colorPaint.getShape() === 'band';
+        const on = 'background:#3b82f6;color:#fff;border-color:#3b82f6';
+        if (!compact) title('Filaments');
         const swatches = row();
         const count = api.conf.get().device.extruders?.length || 1;
+        const sw = compact ? 28 : 30;
         for (let i = 0; i < count; i++) {
             const hex = slotHex(i);
             const active = !erase && i === paintSlot;
             const b = button(String(i + 1), () => { paintSlot = i; erase = false; colorPaint.start(paintSlot, { erase }); render(); },
-                `width:30px;height:30px;padding:0;font-weight:bold;background:${hex};color:${inkFor(hex)};` +
+                `width:${sw}px;height:${sw}px;padding:0;font-weight:bold;background:${hex};color:${inkFor(hex)};` +
                 `border:${active ? '3px solid #2b6' : '1px solid #888'};box-shadow:${active ? '0 0 0 1px #fff inset' : 'none'}`);
             b.title = slotInfo(i) ? `slot ${i + 1} · ${slotInfo(i).material} ${slotInfo(i).name || ''}` : `slot ${i + 1}`;
             swatches.appendChild(b);
         }
-        const eraser = button('eraser', () => { erase = !erase; colorPaint.start(paintSlot, { erase }); render(); },
-            erase ? 'background:#2b6;color:#fff;border-color:#2b6' : '');
+        const eraser = button(compact ? '' : 'eraser', () => { erase = !erase; colorPaint.start(paintSlot, { erase }); render(); },
+            (erase ? 'background:#2b6;color:#fff;border-color:#2b6;' : '') + (compact ? `height:${sw}px;padding:0 8px` : ''));
+        if (compact) eraser.appendChild(el('i', '')).className = 'fas fa-eraser';
         eraser.title = 'erase colour paint (or hold shift while painting)';
         swatches.appendChild(eraser);
         body.appendChild(swatches);
 
         // tool type, as in Orca: a round brush, or a height range (a band
         // across the whole object around where you click)
-        title('Tool type');
-        const types = row();
-        const band = colorPaint.getShape() === 'band';
-        for (const [shape, label, tip] of [
-            [ 'sphere', '● brush', 'paint where you drag' ],
-            [ 'band', '☰ height range', 'click or drag over the model: the whole object at that height gets the colour' ],
+        if (!compact) title('Tool type');
+        const types = compact ? row() : row();
+        for (const [shape, label, short, tip] of [
+            [ 'sphere', '● brush', '●', 'brush: paint where you drag' ],
+            [ 'band', '☰ height range', '☰', 'height range: click or drag over the model, the whole object at that height gets the colour' ],
         ]) {
-            const on = (shape === 'band') === band;
-            const b = button(label, () => { colorPaint.setShape(shape); render(); },
-                on ? 'background:#3b82f6;color:#fff;border-color:#3b82f6' : '');
+            const b = button(compact ? short : label, () => { colorPaint.setShape(shape); render(); },
+                ((shape === 'band') === band ? on : '') + (compact ? ';width:30px;padding:4px 0' : ''));
             b.title = tip;
             types.appendChild(b);
         }
-        body.appendChild(types);
-
-        title(band ? 'Height' : 'Pen size');
-        const size = row();
-        const slider = el('input', 'display:block;flex:1;min-width:120px');
+        if (!compact) {
+            body.appendChild(types);
+            title(band ? 'Height' : 'Pen size');
+        }
+        const size = compact ? types : row();
+        const slider = el('input', `display:block;flex:1;min-width:${compact ? 60 : 120}px`);
         slider.type = 'range';
         slider.min = 0.5; slider.max = 10; slider.step = 0.5;
         slider.value = colorPaint.getBrush();
         // a band is twice the brush radius high
         const shown = () => `${(colorPaint.getBrush() * (band ? 2 : 1)).round(1)} mm`;
-        const value = el('span', 'display:inline-block;min-width:44px;text-align:right', shown());
+        const value = el('span', `display:inline-block;min-width:${compact ? 38 : 44}px;text-align:right`, shown());
+        value.title = band ? 'height of the band' : 'pen size';
         slider.oninput = () => { colorPaint.setBrush(parseFloat(slider.value)); value.textContent = shown(); };
         size.append(slider, value);
+        if (compact) {
+            const clear = button('', () => colorPaint.clear(), 'padding:4px 7px;color:#c62828');
+            clear.appendChild(el('i', '')).className = 'fas fa-trash-can';
+            clear.title = 'erase all painting';
+            size.appendChild(clear);
+        }
         body.appendChild(size);
 
-        const actions = row();
-        actions.appendChild(button('erase all painting', () => colorPaint.clear()));
-        body.appendChild(actions);
-        body.appendChild(el('div', 'display:block;color:#777;font-size:11px',
-            'drag over the model to paint · [ ] pen size · shift erases · esc back to move'));
+        if (!compact) {
+            const actions = row();
+            actions.appendChild(button('erase all painting', () => colorPaint.clear()));
+            body.appendChild(actions);
+            body.appendChild(el('div', 'display:block;color:#777;font-size:11px',
+                'drag over the model to paint · [ ] pen size · shift erases · esc back to move'));
+        }
     }
 
     if (tool === 'move' && movePanel) {
@@ -350,9 +364,8 @@ function layout() {
     }
     Object.assign(panel.style, { width: narrow ? 'min(300px, calc(100vw - 16px))' : '300px' });
     Object.assign(body.style, { maxHeight: narrow ? '55vh' : 'calc(100vh - 140px)' });
-    // phones: always just above the footer (a panel dragged up on a phone
-    // could end with its grip under the menu bar)
-    Object.assign(panel.style, pos.panel && !narrow ? placed(panel, pos.panel) : narrow ?
+    Object.assign(panel.style, { padding: narrow ? '8px 8px' : '10px 12px' });
+    Object.assign(panel.style, pos.panel ? placed(panel, pos.panel) : narrow ?
         { top: 'auto', bottom: `${footer + 8}px`, left: '8px' } :
         { top: '62px', bottom: 'auto', left: '264px' });
 }
