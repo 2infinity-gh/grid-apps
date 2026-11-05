@@ -2560,3 +2560,9 @@ details[open] summary::after {
 .em20 {
     max-width: 20em;
 }
+
+/* drop menus above the floating toolbar and plate bar (z-index 20) */
+#menubar {
+    position: relative;
+    z-index: 40;
+}

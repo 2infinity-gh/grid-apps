@@ -256,6 +256,7 @@ function render() {
     const grip = el('div', 'display:inline-flex;align-items:center;justify-content:center;min-width:16px;min-height:14px;' +
         'color:#999;cursor:grab;font-size:14px;user-select:none', '⠿');
     grip.title = 'drag to move the toolbar · double click: back to its place';
+    grip.className = 'tool-grip';
     draggable(grip, bar, 'bar');
     bar.appendChild(grip);
     const icon = (b, name) => { b.appendChild(el('i', 'font-size:15px', '')).className = `fas ${name}`; };
@@ -288,6 +289,7 @@ function render() {
         bar.appendChild(b);
     }
     renderPanel();
+    layout();
 }
 
 // keep a dragged element on screen (its grip at least)
@@ -302,13 +304,20 @@ function placed(e, p) {
 function layout() {
     const narrow = window.innerWidth < 760;
     bar.style.flexDirection = narrow ? 'row' : 'column';
-    Object.assign(bar.style, pos.bar ? placed(bar, pos.bar) : narrow ?
-        { top: 'auto', bottom: '12px', left: '8px' } :
-        { top: '48px', bottom: 'auto', left: '220px' });
+    // phones: always a row centred along the bottom, scrolling sideways when
+    // it does not fit; dragging it around is a desktop thing
+    Object.assign(bar.style, narrow ?
+        { top: 'auto', bottom: 'calc(10px + env(safe-area-inset-bottom))', left: '50%', transform: 'translateX(-50%)',
+          maxWidth: 'calc(100vw - 16px)', overflowX: 'auto', boxSizing: 'border-box' } :
+        { transform: 'none', maxWidth: 'none', overflowX: 'visible',
+          ...(pos.bar ? placed(bar, pos.bar) : { top: '48px', bottom: 'auto', left: '220px' }) });
+    const grip = bar.querySelector('.tool-grip');
+    if (grip) grip.style.display = narrow ? 'none' : 'inline-flex';
+    for (const c of bar.children) if (c.tagName === 'BUTTON') c.style.flexShrink = '0';
     Object.assign(panel.style, { width: narrow ? 'min(300px, calc(100vw - 16px))' : '300px' });
     Object.assign(body.style, { maxHeight: narrow ? '55vh' : 'calc(100vh - 140px)' });
     Object.assign(panel.style, pos.panel ? placed(panel, pos.panel) : narrow ?
-        { top: 'auto', bottom: '58px', left: '8px' } :
+        { top: 'auto', bottom: 'calc(62px + env(safe-area-inset-bottom))', left: '8px' } :
         { top: '62px', bottom: 'auto', left: '264px' });
 }
 
@@ -329,7 +338,8 @@ export function initToolbar() {
     draggable(ear, panel, 'panel');
     body = el('div', 'display:flex;flex-direction:column;gap:6px;overflow-y:auto');
     panel.append(ear, body);
-    document.body.append(bar, panel);
+    // inside #app (its own stacking context) so the top menu drops over them
+    (document.getElementById('app') || document.body).append(bar, panel);
     layout();
     window.addEventListener('resize', layout);
 

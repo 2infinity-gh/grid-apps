@@ -204,7 +204,7 @@ function renderBar() {
         bar = document.createElement('div');
         bar.id = 'plate-bar';
         bar.style.cssText = 'position:fixed;top:72px;left:50%;transform:translateX(-50%);z-index:20;display:flex;flex-direction:row;gap:4px;align-items:center;background:rgba(255,255,255,.9);border:1px solid #ccc;border-radius:8px;padding:3px 6px;font:12px sans-serif';
-        document.body.appendChild(bar);
+        (document.getElementById('app') || document.body).appendChild(bar);   // under the top menu
     }
     bar.innerHTML = '';
     const button = (text, title, onclick, active) => {
