@@ -300,24 +300,35 @@ function placed(e, p) {
 }
 
 // desktop: a column along the settings panel, the tool panel beside it;
-// narrow screens: a row bottom left, panel above it; either one where the user dragged it
+// narrow screens: a footer under the app, panel above it; desktop: where the user dragged it
+let footer = 0;   // height the app gives up for the footer
 function layout() {
     const narrow = window.innerWidth < 760;
     bar.style.flexDirection = narrow ? 'row' : 'column';
-    // phones: always a row centred along the bottom, scrolling sideways when
-    // it does not fit; dragging it around is a desktop thing
+    // phones: a footer across the bottom (the app ends above it, so it covers
+    // nothing), scrolling sideways when it does not fit; dragging is a desktop thing
     Object.assign(bar.style, narrow ?
-        { top: 'auto', bottom: 'calc(10px + env(safe-area-inset-bottom))', left: '50%', transform: 'translateX(-50%)',
-          maxWidth: 'calc(100vw - 16px)', overflowX: 'auto', boxSizing: 'border-box' } :
-        { transform: 'none', maxWidth: 'none', overflowX: 'visible',
+        { top: 'auto', bottom: '0', left: '0', right: '0', transform: 'none', maxWidth: 'none', overflowX: 'auto',
+          boxSizing: 'border-box', justifyContent: 'center', borderRadius: '0', border: '0', borderTop: '1px solid #ccc',
+          padding: '4px 4px calc(4px + env(safe-area-inset-bottom))', background: '#fff' } :
+        { right: 'auto', transform: 'none', maxWidth: 'none', overflowX: 'visible', justifyContent: 'flex-start',
+          borderRadius: '8px', border: '1px solid #ccc', padding: '3px', background: 'rgba(255,255,255,.92)',
           ...(pos.bar ? placed(bar, pos.bar) : { top: '48px', bottom: 'auto', left: '220px' }) });
     const grip = bar.querySelector('.tool-grip');
     if (grip) grip.style.display = narrow ? 'none' : 'inline-flex';
     for (const c of bar.children) if (c.tagName === 'BUTTON') c.style.flexShrink = '0';
+    const app = document.getElementById('app');
+    const need = narrow && bar.style.display !== 'none' ? bar.offsetHeight : 0;
+    if (app && need !== footer) {
+        footer = need;
+        Object.assign(app.style, need ? { top: '0', bottom: `${need}px`, height: 'auto' } : { top: '', bottom: '', height: '' });
+        // the 3D view takes the new size
+        setTimeout(() => window.dispatchEvent(new Event('resize')));
+    }
     Object.assign(panel.style, { width: narrow ? 'min(300px, calc(100vw - 16px))' : '300px' });
     Object.assign(body.style, { maxHeight: narrow ? '55vh' : 'calc(100vh - 140px)' });
     Object.assign(panel.style, pos.panel ? placed(panel, pos.panel) : narrow ?
-        { top: 'auto', bottom: 'calc(62px + env(safe-area-inset-bottom))', left: '8px' } :
+        { top: 'auto', bottom: `${footer + 8}px`, left: '8px' } :
         { top: '62px', bottom: 'auto', left: '264px' });
 }
 
@@ -361,6 +372,7 @@ export function initToolbar() {
     api.event.on('mode.set', mode => {
         bar.style.display = mode === 'FDM' ? 'flex' : 'none';
         if (mode !== 'FDM') { setTool('move'); panel.style.display = 'none'; }
+        layout();
     });
     // only meaningful while arranging
     api.event.on('view.set', view => {
