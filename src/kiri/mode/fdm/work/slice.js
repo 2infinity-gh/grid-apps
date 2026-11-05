@@ -379,57 +379,42 @@ export function sliceOne(settings, widget, onupdate, ondone) {
         let zi = indices; // indices
         let zh = heights; // heights
         if (hm) {
-            // adaptive increments based on z indices (var map to legacy code)
-            let zIncFirst = h0;
-            let zInc = h1;
-            let zIncMin = hm;
-            let zHeights = heights;
-            let zIndexes = indices;
-            let zOrdered = Object.values(zopt.zIndexes).map(v => parseFloat(v));
-            // console.log('adaptive slicing', zIncMin, ':', zInc, 'from', zMin, 'to', zMax);
-            let zPos = zIncFirst,
-                zOI = 0,
-                zDelta,
-                zDivMin,
-                zDivMax,
-                zStep,
-                nextZ,
-                lzp = zPos;
-            // adaptive slice height
-            // first slice/height is fixed from base
-            zHeights.push(zIncFirst);
-            zIndexes.push(zIncFirst);
-            // console.log({zIncFirst, zOrdered})
-            while (zPos < zMax && zOI < zOrdered.length) {
-                nextZ = zOrdered[zOI++];
-                if (zPos >= nextZ) {
-                    // console.log('skip',{zPos},'>=',{nextZ});
-                    continue;
-                }
-                zDelta = nextZ - zPos;
-                if (zDelta < zIncMin) {
-                    // console.log('skip',{zDelta},'<',{zIncMin});
-                    continue;
-                }
-                zDivMin = Math.floor(zDelta / zIncMin);
-                zDivMax = Math.floor(zDelta / zInc);
-                if (zDivMax && zDivMax <= zDivMin) {
-                    if (zDelta % zInc > CONSTANTS.ADAPTIVE_SLICE_TOLERANCE) zDivMax++;
-                    zStep = zDelta / zDivMax;
-                    // console.log(`--- zDivMax <= zDivMin ---`, zStep, zDelta % zInc)
-                } else {
-                    zStep = zDelta;
-                }
-                // console.log({nextZ, zPos, zDelta, zStep, zDivMin, zDivMax})
-                while (zPos < nextZ) {
-                    zHeights.push(zStep);
-                    zIndexes.push(zPos + zStep);
-                    zPos += zStep;
-                    // console.log({D: zPos - lzp, zPos})
-                    // lzp = zPos;
-                }
+            // adaptive (like Orca / Prusa): each layer is as thick as the flattest
+            // surface it crosses allows, keeping the stair step on that surface
+            // (height x |normal z|) within the minimum height: thin layers on
+            // gentle slopes and domes, full height on steep walls
+            const tris = [];
+            for (let i = 0; i + 2 < points.length; i += 3) {
+                const a = points[i], b = points[i + 1], c = points[i + 2];
+                const ux = b.x - a.x, uy = b.y - a.y, uz = b.z - a.z;
+                const vx = c.x - a.x, vy = c.y - a.y, vz = c.z - a.z;
+                const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+                const len = Math.hypot(nx, ny, nz);
+                if (!len) continue;
+                const cos = Math.abs(nz) / len;
+                // walls need no thin layers, flat faces line up with no stair at all
+                if (cos < 0.05 || cos > 0.999) continue;
+                tris.push({ lo: Math.min(a.z, b.z, c.z), hi: Math.max(a.z, b.z, c.z), cos });
             }
-            // console.log({zIndexes, zHeights});
+            tris.sort((a, b) => a.lo - b.lo);
+            let next = 0, active = [];
+            zh.push(h0);
+            zi.push((h0 / 2).round(3));
+            let top = h0;
+            while (true) {
+                while (next < tris.length && tris[next].lo < top + h1) active.push(tris[next++]);
+                active = active.filter(t => t.hi > top);
+                let h = h1;
+                for (const t of active) if (t.lo < top + h) h = Math.min(h, hm / t.cos);
+                h = Math.max(hm, h);
+                // the last layer up to the top, without a sliver
+                if (zMax - top - h < hm) h = Math.min(h1, Math.max(hm, zMax - top));
+                const realz = (top + h / 2).round(3);
+                if (realz > zMax || h <= 0) break;
+                zh.push(h);
+                zi.push(realz);
+                top += h;
+            }
         } else {
             // simple based + fixed increment
             while (true) {
