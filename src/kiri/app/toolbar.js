@@ -336,6 +336,9 @@ function layout() {
     const grip = bar.querySelector('.tool-grip');
     if (grip) grip.style.display = narrow ? 'none' : 'inline-flex';
     for (const c of bar.children) if (c.tagName === 'BUTTON') c.style.flexShrink = '0';
+    // phones outside arrange (slice, preview): the tools do nothing there, so
+    // the footer goes and the layer slider gets the bottom of the screen
+    if (api.mode.get() === 'FDM') bar.style.display = narrow && !api.view.is_arrange() ? 'none' : 'flex';
     const app = document.getElementById('app');
     const need = narrow && bar.style.display !== 'none' ? bar.offsetHeight : 0;
     if (app && need !== footer) {
@@ -401,6 +404,7 @@ export function initToolbar() {
         bar.style.opacity = arrange ? '1' : '.4';
         bar.style.pointerEvents = arrange ? 'auto' : 'none';
         if (!arrange && tool !== 'move') setTool('move');
+        layout();
     });
     if (api.mode.get() !== 'FDM') bar.style.display = 'none';
     render();

@@ -2598,3 +2598,41 @@ details[open] summary::after {
         padding-right: 6px;
     }
 }
+/* phones: dialogs (export) fit the screen, boxes wrap under each other, and
+   the view behind (speed legend, model) does not show through */
+@media (max-width: 759px) {
+    #modal-box {
+        max-width: calc(100vw - 8px);
+        box-sizing: border-box;
+        overflow-x: hidden;
+        background-color: #fff !important;
+    }
+    #modal-box .f-row {
+        flex-wrap: wrap;
+        min-width: 0;
+    }
+    #modal-box .f-row > * {
+        min-width: 0;
+        max-width: 100%;
+    }
+    #modal-box input {
+        max-width: 100%;
+    }
+}
+/* phones: the layer slider across the whole screen, its toggles wrapping
+   above it, and the speed legend below the view tabs */
+@media (max-width: 759px) {
+    #layer-slider {
+        position: fixed;
+        left: 6px;
+        right: 6px;
+        bottom: max(4px, env(safe-area-inset-bottom));
+        z-index: 30;
+    }
+    #layers {
+        flex-wrap: wrap;
+    }
+    #speedbar {
+        top: 80px;
+    }
+}
