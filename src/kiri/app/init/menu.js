@@ -275,7 +275,7 @@ function fitDrop(menu) {
     const r = drop.getBoundingClientRect();
     if (r.right > innerWidth - 4) {
         const shift = Math.min(r.right - innerWidth + 4, r.left - 4);
-        drop.style.left = `${-shift - 1}px`;
+        drop.style.left = `${drop.offsetLeft - shift}px`;
         drop.style.right = 'auto';
     }
     if (r.bottom > innerHeight - 4) {

@@ -314,7 +314,8 @@ function render() {
 // keep a dragged element on screen (its grip at least)
 function placed(e, p) {
     const x = Math.min(Math.max(0, p.x), window.innerWidth - Math.min(e.offsetWidth || 60, window.innerWidth));
-    const y = Math.min(Math.max(14, p.y), window.innerHeight - 40);
+    // below the menu bar, so the grip stays reachable
+    const y = Math.min(Math.max(60, p.y), window.innerHeight - 40);
     return { top: `${y}px`, bottom: 'auto', left: `${x}px` };
 }
 
@@ -349,7 +350,9 @@ function layout() {
     }
     Object.assign(panel.style, { width: narrow ? 'min(300px, calc(100vw - 16px))' : '300px' });
     Object.assign(body.style, { maxHeight: narrow ? '55vh' : 'calc(100vh - 140px)' });
-    Object.assign(panel.style, pos.panel ? placed(panel, pos.panel) : narrow ?
+    // phones: always just above the footer (a panel dragged up on a phone
+    // could end with its grip under the menu bar)
+    Object.assign(panel.style, pos.panel && !narrow ? placed(panel, pos.panel) : narrow ?
         { top: 'auto', bottom: `${footer + 8}px`, left: '8px' } :
         { top: '62px', bottom: 'auto', left: '264px' });
 }
