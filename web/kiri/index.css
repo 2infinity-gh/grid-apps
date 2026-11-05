@@ -2573,3 +2573,28 @@ details[open] summary::after {
 #menubar .top-menu > span.menu-closed .top-menu-drop {
     display: none !important;
 }
+/* phones: the objects / ranges panel starts below the view tabs and plate bar */
+@media (max-width: 759px) {
+    #panel-right {
+        margin-top: 74px;
+        max-width: 42vw;
+    }
+}
+#menubar .top-menu > span.menu-open > .pop {
+    display: flex;
+}
+#menubar .top-menu > span.menu-closed > .pop {
+    display: none !important;
+}
+/* phones: the menu bar fits the screen (no app name, info or language menu) */
+@media (max-width: 759px) {
+    #menubar .menubar-appname,
+    #menubar .menubar-separator,
+    #menubar .narrow-hide {
+        display: none !important;
+    }
+    #menubar .top-menu > span {
+        padding-left: 6px;
+        padding-right: 6px;
+    }
+}

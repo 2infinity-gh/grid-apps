@@ -43,9 +43,10 @@ function dropMenu(actions, side, items) {
     ]);
 }
 
-function topMenu(actions, { text, lk, iconClass, side = 'left', right = false, items }) {
+function topMenu(actions, { text, lk, iconClass, side = 'left', right = false, narrowHide = false, items }) {
     const resolved = lk ? tr(lk, text) : text;
-    return span({ class: right ? 'menu-right' : undefined }, [
+    const cls = [ right ? 'menu-right' : '', narrowHide ? 'narrow-hide' : '' ].join(' ').trim();
+    return span({ class: cls || undefined }, [
         resolved !== undefined ? label({ ...(lk ? { lk } : {}), _: resolved }) : undefined,
         iconClass ? icon(iconClass) : undefined,
         dropMenu(actions, side, items)
@@ -188,7 +189,7 @@ function content(actions) {
             ]),
             div({ class: 'grow' }),
             topMenu(actions, {
-                text: 'info', lk: 'info', side: 'right', right: true, items: [
+                text: 'info', lk: 'info', side: 'right', right: true, narrowHide: true, items: [
                     menuItem(actions, { id: 'app-help', lk: 'help', text: 'help' }),
                     menuItem(actions, { id: 'app-don8', lk: 'donate', text: 'donate' }),
                 ]
@@ -219,7 +220,7 @@ function content(actions) {
                 ]
             }),
             topMenu(actions, {
-                iconClass: 'fas fa-language', side: 'right', right: true, items: [
+                iconClass: 'fas fa-language', side: 'right', right: true, narrowHide: true, items: [
                     menuItem(actions, { children: label({ id: 'lset-zh', _: '简体中文' }) }),
                     menuItem(actions, { children: label({ id: 'lset-da', _: 'dansk' }) }),
                     menuItem(actions, { children: label({ id: 'lset-de', _: 'deutsch' }) }),
@@ -265,6 +266,24 @@ function modeTools(actions) {
 // the drop menus open on hover, which sticks (or never comes) on touch
 // screens: a tap opens a menu, tapping its button again or picking an item
 // closes it; a mouse moving off a menu leaves hover in charge again
+// narrow screens: a drop menu wider than the room right of its button
+// (Tool, at the right end) would run off the screen; keep it inside
+function fitDrop(menu) {
+    const drop = menu.querySelector('.top-menu-drop, .pop');
+    if (!drop) return;
+    drop.style.left = drop.style.right = drop.style.maxHeight = drop.style.overflowY = '';
+    const r = drop.getBoundingClientRect();
+    if (r.right > innerWidth - 4) {
+        const shift = Math.min(r.right - innerWidth + 4, r.left - 4);
+        drop.style.left = `${-shift - 1}px`;
+        drop.style.right = 'auto';
+    }
+    if (r.bottom > innerHeight - 4) {
+        drop.style.maxHeight = `${innerHeight - r.top - 8}px`;
+        drop.style.overflowY = 'auto';
+    }
+}
+
 function closeOnPick(root) {
     if (root.dataset.closeOnPick) return;
     root.dataset.closeOnPick = '1';
@@ -272,14 +291,16 @@ function closeOnPick(root) {
     const close = menu => { menu?.classList.remove('menu-open'); menu?.classList.add('menu-closed'); };
     root.addEventListener('pointerdown', ev => {
         const menu = ev.target.closest('.top-menu > span');
-        if (!menu || ev.target.closest('.top-menu-drop')) return;
+        if (!menu || ev.target.closest('.top-menu-drop, .pop')) return;
         if (menu.classList.contains('menu-open')) return close(menu);
         menus().forEach(m => { if (m !== menu) close(m); });
         menu.classList.remove('menu-closed');
         menu.classList.add('menu-open');
+        fitDrop(menu);
     });
     root.addEventListener('click', ev => {
-        const item = ev.target.closest('.top-menu-drop .content > div');
+        // a drop menu item, or a slot in the Tool pop up
+        const item = ev.target.closest('.top-menu-drop .content > div, .pop > *');
         // items with their own controls (inputs) stay open
         if (item && !ev.target.closest('input, select')) close(item.closest('.top-menu > span'));
     }, true);   // capture: item handlers stop the click from bubbling

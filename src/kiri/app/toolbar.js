@@ -372,6 +372,8 @@ export function initToolbar() {
     (document.getElementById('app') || document.body).append(bar, panel);
     layout();
     window.addEventListener('resize', layout);
+    // phones: the objects list starts folded (tap "objects" to open it)
+    if (window.innerWidth < 760) document.querySelector('#panel-right details')?.removeAttribute('open');
 
     // painting can stop elsewhere (esc): fall back to the move tool
     colorPaint.onChange(state => {
