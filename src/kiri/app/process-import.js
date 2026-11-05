@@ -149,6 +149,11 @@ const MAP = {
     },
     enable_overhang_bridge_fan:   (v, p) => ({ outputOverhangFan: [1, '1', 'true'].includes(v) ? value(p.overhang_fan_speed) ?? 100 : -1 }),
     overhang_fan_threshold:       v => ({ outputOverhangFanThreshold: pct(v) ?? v }),
+    // fuzzy skin
+    fuzzy_skin:                   (v, p) => ({ outputFuzzyThickness: v && v !== 'none' ? value(p.fuzzy_skin_thickness) ?? 0.3 : 0,
+        outputFuzzyAll: v === 'all' || v === 'allwalls' }),
+    fuzzy_skin_point_distance:    v => ({ outputFuzzyDistance: v }),
+    fuzzy_skin_first_layer:       v => ({ outputFuzzyFirst: [1, '1', 'true'].includes(v) }),
     // shapes and extras
     spiral_mode:                  v => [1, '1', 'true'].includes(v) ? { sliceFillType: 'vase' } : {},
     draft_shield:                 v => ({ outputDraftShield: v === 'enabled' || v === 'limited' }),
@@ -169,7 +174,7 @@ const KNOWN_UNMAPPED = [
     'top_surface_pattern', 'bottom_surface_pattern', 'brim_width', 'brim_type',
     'seam_gap', 'wipe_on_loops', 'only_one_wall_top', 'detect_overhang_wall',
     'top_surface_line_width',
-    'fuzzy_skin', 'slow_down_layers', 'precise_outer_wall', 'overhang_reverse',
+ 'slow_down_layers', 'precise_outer_wall', 'overhang_reverse',
     // Kiri's "adaptive" thin walls are the nearest thing but crash on some models, so not mapped
     'wall_generator'
 ];

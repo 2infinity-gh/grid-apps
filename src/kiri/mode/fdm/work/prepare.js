@@ -1173,6 +1173,31 @@ function layerProbe(polys) {
     };
 }
 
+// fuzzy skin (Orca): the loop resampled every `dist` mm, each point moved a
+// random amount (within `thick`) across the wall; seeded, so slicing again
+// gives the same skin
+function fuzzyLoop(poly, thick, dist, seed) {
+    let rnd = seed * 9301 + 49297;
+    const rand = () => (rnd = (rnd * 9301 + 49297) % 233280) / 233280;
+    const pts = poly.points, out = newPolygon();
+    out.depth = poly.depth;
+    const n = pts.length;
+    let carry = 0;
+    for (let i = 0; i < n; i++) {
+        const a = pts[i], b = pts[(i + 1) % n];
+        const len = Math.hypot(b.x - a.x, b.y - a.y);
+        if (!len) continue;
+        const nx = -(b.y - a.y) / len, ny = (b.x - a.x) / len;
+        for (let t = carry; t < len; t += dist) {
+            const off = (rand() - 0.5) * thick;
+            out.push(newPoint(a.x + (b.x - a.x) * t / len + nx * off, a.y + (b.y - a.y) * t / len + ny * off, a.z));
+        }
+        carry = (carry - len) % dist;
+        if (carry < 0) carry += dist;
+    }
+    return out.length >= 3 ? out : poly;
+}
+
 function slicePrintPath(print, slice, startPoint, offset, output, opt = {}) {
     const { settings } = print;
     const { device } = settings;
@@ -1541,6 +1566,11 @@ function slicePrintPath(print, slice, startPoint, offset, output, opt = {}) {
             if (opt.shell) print.setType(poly.depth === 0 ? 'outer wall' : 'shells');
             const wallKey = poly.depth === 0 ? 'sliceLineWidthOuter' : 'sliceLineWidthInner';
             const from = preout.length;
+            // fuzzy skin on the outer walls (or all walls)
+            const fz = process.outputFuzzyThickness;
+            if (opt.shell && fz > 0 && (!firstLayer || process.outputFuzzyFirst) && (poly.depth === 0 || process.outputFuzzyAll)) {
+                poly = fuzzyLoop(poly, fz, process.outputFuzzyDistance || 0.8, slice.index * 31 + traceNo + 1);
+            }
             startPoint = print.polyPrintPath(poly, startPoint, preout, {
                 accel: finishShell,
                 arcOpts: fdmArcEnabled ? arcOpts : undefined,
