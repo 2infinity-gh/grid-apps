@@ -740,6 +740,33 @@ export function sliceOne(settings, widget, onupdate, ondone) {
             if (slice.flats) POLY.setZ(slice.flats, slice.z);
         }, "layer deltas");
         profileEnd();
+        // ensure vertical shell thickness (Orca): where a layer above or below
+        // steps in or out (a dome, a slope), its surface comes closer than the
+        // wall thickness to this layer's infill; make that part solid
+        if (process.sliceVerticalShells && !vaseMode) {
+            profileStart("vertical-shells");
+            const wall = (process.sliceShells || 1) * lineWidth;
+            const band = s => s._vband ?? (s._vband = (() => {
+                const outline = s.topPolys();
+                const rest = [];
+                POLY.subtract(outline, POLY.offset(outline, -wall, { z: s.z }) || [], rest, null, s.z, lineWidth * lineWidth);
+                return rest;
+            })());
+            for (const slice of slices) {
+                const params = slice.params || process;
+                const up = Math.max(params.sliceTopLayers || 0, 1), down = Math.max(params.sliceBottomLayers || 0, 1);
+                const near = [];
+                for (let s = slice.up, n = 0; s && n < up; s = s.up, n++) near.push(...band(s));
+                for (let s = slice.down, n = 0; s && n < down; s = s.down, n++) near.push(...band(s));
+                if (!near.length) continue;
+                const inner = POLY.offset(slice.topPolys(), -wall, { z: slice.z }) || [];
+                if (!inner.length) continue;
+                const add = POLY.trimTo(inner, POLY.union(near, 0, true), { minArea: lineWidth * lineWidth * 4 }) || [];
+                if (add.length) slice.solids.appendAll(POLY.setZ(add, slice.z));
+            }
+            for (const slice of slices) delete slice._vband;
+            profileEnd();
+        }
         // union solid areas
         profileStart("solid-union");
         forSlices(div[2].lo, div[2].hi, slice => {

@@ -89,7 +89,10 @@ function slicerPostProcessor(data, options) {
         let trg = shellFrac > 0.5 ? 1 : parts - 1;
         sliceShells += rem >= trg ? 1 : 0;
     }
-    const count = sliceShells;
+    // one wall on the top layer (Orca: only one wall on top surfaces; here
+    // the object's topmost layer), the rest of it solid infill
+    const count = process.sliceOneWallTop && zIndexes?.length && z >= Math.max(...zIndexes) - 0.001 ?
+        Math.min(1, sliceShells) : sliceShells;
     const offset =  shellOffset;
     // walls by their own widths (Orca): the outer wall's centre half its width
     // in, then the next ones a mean width apart; the first layer its own width

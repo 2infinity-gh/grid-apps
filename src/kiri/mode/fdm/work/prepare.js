@@ -2082,7 +2082,12 @@ function slicePrintPath(print, slice, startPoint, offset, output, opt = {}) {
 
             // then output solid and sparse fill
             print.setType('solid fill');
-            outputFills(next.fill_lines, { flow: isRaft ? 1 : widthMult('sliceLineWidthSolid'), raft: isRaft, bridges: isRaft ? null : bridgeProbe });
+            // monotonic (Orca): top surfaces line by line across the area in
+            // one order, not hopping to the nearest end, so the lines lie evenly
+            const monotonic = process.outputMonotonic && !isRaft && !firstLayer &&
+                (slice.isFlatsLayer || !slice.up);
+            outputFills(next.fill_lines, { flow: isRaft ? 1 : widthMult('sliceLineWidthSolid'), raft: isRaft,
+                bridges: isRaft ? null : bridgeProbe, near: monotonic ? false : undefined });
 
             print.setType('sparse infill');
             outputSparse(next.fill_sparse, sparseMult * widthMult('sliceLineWidthSparse'), infillSpeed);
