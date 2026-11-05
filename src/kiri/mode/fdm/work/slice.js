@@ -655,10 +655,15 @@ export function sliceOne(settings, widget, onupdate, ondone) {
         let layers = mm => Math.ceil((mm ?? legacy) / layer - 0.01);
         let gapTop = layers(process.sliceSupportGapTop);
         let gapBottom = layers(process.sliceSupportGapBottom);
+        // the layers above and below cut with the bare part (like Orca): the xy
+        // distance is for the side of the part on this layer only, otherwise
+        // under a gentle overhang (a ball) the support stays that far back from
+        // every layer it should carry and the walls sag into it
+        const bare = s => s.topPolys ? s.topPolys() : s.clips;
         for (let slice of stack) {
             let clips = [ slice.clips ];
-            for (let i = 0, s = slice.up; i < gapTop && s; i++, s = s.up) clips.push(s.clips);
-            for (let i = 0, s = slice.down; i < gapBottom && s; i++, s = s.down) clips.push(s.clips);
+            for (let i = 0, s = slice.up; i < gapTop && s; i++, s = s.up) clips.push(bare(s));
+            for (let i = 0, s = slice.down; i < gapBottom && s; i++, s = s.down) clips.push(bare(s));
             clips = clips.filter(v => v).flat();
             if (clips.length) {
                 let rem  = [];
