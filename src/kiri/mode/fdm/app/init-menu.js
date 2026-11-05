@@ -135,6 +135,7 @@ export function menu() {
     sliceSupportTreeBranch:  newInput(LANG.sp_trbr_s, {title:LANG.sp_trbr_l, convert:toFloat, bound:bound(0.4,30.0), show:isTree}),
     sliceSupportTreeGrow:    newInput(LANG.sp_trgr_s, {title:LANG.sp_trgr_l, convert:toFloat, bound:bound(0.0,30.0), show:isTree}),
     sliceSupportTreeSpacing: newInput(LANG.sp_trsp_s, {title:LANG.sp_trsp_l, convert:toFloat, bound:bound(1.0,50.0), show:isTree}),
+    sliceSupportBrim:    newInput(LANG.sp_trbm_s, {title:LANG.sp_trbm_l, convert:toFloat, bound:bound(0.0,20.0), show:isTree}),
     separator:           newBlank({ class:"set-sep", driven, show:manualSupport }),
     sliceSupportManual: newRow([
         (ui.ssmAdd = newButton(undefined, onButtonClick, {icon:'<i class="fas fa-plus"></i>'})),

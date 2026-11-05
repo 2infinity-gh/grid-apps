@@ -64,6 +64,8 @@ const MAP = {
     tree_support_branch_diameter: v => ({ sliceSupportTreeBranch: v }),
     tree_support_branch_diameter_angle: v => ({ sliceSupportTreeGrow: v }),
     tree_support_branch_distance: v => ({ sliceSupportTreeSpacing: v }),
+    // Orca sizes an automatic brim itself; Kiri then keeps its 3 mm
+    tree_support_brim_width:      (v, p) => String(value(p.tree_support_auto_brim)) === '0' || p.tree_support_auto_brim?.[0] === 'false' ? { sliceSupportBrim: v } : {},
     support_top_z_distance:       v => ({ sliceSupportGapTop: v }),
     // 0 = the object's own filament, n = filament n (Kiri's support tool works the same way)
     support_filament:             v => ({ sliceSupportNozzle: v }),

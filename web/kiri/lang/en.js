@@ -513,6 +513,8 @@ self.lang['en-us'] = {
     sp_trgr_l:      ["tree support: how fast branches","get thicker going down","in degrees (0 = not)"],
     sp_trsp_s:      "branch distance",
     sp_trsp_l:      ["tree support: distance between","branch tips under an overhang","in millimeters"],
+    sp_trbm_s:      "brim width",
+    sp_trbm_l:      ["tree support: brim around the","trunks on the bed, for adhesion","in millimeters (0 = none)","not used with a raft"],
     sp_tree_s:      "tree type",
     sp_tree_l:      ["use tree type support structure"],
 

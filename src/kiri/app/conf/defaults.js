@@ -361,6 +361,7 @@ export const conf = {
                 sliceSupportTreeBranch: 3,
                 sliceSupportTreeGrow: 3,
                 sliceSupportTreeSpacing: 4,
+                sliceSupportBrim: 3,
                 sliceSupportNozzle: 0,
                 sliceSupportOffset: 1.0,
                 sliceSupportOutline: true,

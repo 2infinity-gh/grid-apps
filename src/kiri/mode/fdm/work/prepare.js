@@ -70,8 +70,22 @@ export async function fdm_prepare(widgets, settings, update) {
     const baseWidget = widgets.filter(w => w.slices?.length).sort((a, b) => a.slices[0].z - b.slices[0].z)[0];
     const baseTool = baseWidget?.anno?.extruder ?? 0;
     let baseOut = false;
+    // tree / organic supports stand on thin trunks: like Orca they get a brim
+    // of their own (sliceSupportBrim mm), around the part's and the supports'
+    // first layer together so it never runs into the part (not with a raft)
+    let supportBrim = null;
+    const supportBrimWidth = process.sliceSupportBrim ?? 3;
+    if (!isBelt && !useRaft && supportBrimWidth > 0 && [ 'tree', 'organic' ].includes(process.sliceSupportType)) {
+        let base = [], has = false;
+        for (let widget of widgets.filter(w => w.slices?.length)) {
+            let first = widget.slices[0];
+            for (let top of first.tops || []) base.push(top.poly.clone().move(widget.track.pos));
+            for (let poly of first.supports || []) { base.push(poly.clone().move(widget.track.pos)); has = true; }
+        }
+        if (has) supportBrim = { base: POLY.union(base, 0, true), count: Math.max(1, Math.round(supportBrimWidth / nozzle)) };
+    }
     // create brim, skirt, raft if specificed in FDM mode (code shared by laser)
-    if (!isBelt && (process.outputBrimCount || useRaft)) {
+    if (!isBelt && (process.outputBrimCount || useRaft || supportBrim)) {
         baseOut = true;
         let brims = [],
             offset = process.outputBrimOffset || (useRaft ? 4 : 0);
@@ -177,6 +191,29 @@ export async function fdm_prepare(widgets, settings, update) {
             output.last().last().retract = true;
         }
 
+        // support brim: loops around the first layer of parts and supports
+        if (supportBrim) {
+            let polys = [], preout = [];
+            POLY.offset(supportBrim.base, nozzle, {
+                outs: polys,
+                flat: true,
+                count: supportBrim.count,
+                z: firstLayerHeight / 2 + zoff - zneg
+            });
+            print.setType('brim');
+            printPoint = poly2polyEmit(polys, printPoint, (poly, index, count, startPoint) => {
+                return print.polyPrintPath(poly, startPoint, preout, {
+                    tool: baseTool,
+                    rate: firstLayerRate,
+                    onfirst: function(point) {
+                        if (preout.length && point.distTo2D(startPoint) > 2) preout.last().retract = true;
+                    }
+                });
+            });
+            print.addPrintPoints(preout, layerout);
+            if (preout.length) preout.last().retract = true;
+        }
+
         // if using brim or skirt
         if (process.outputBrimCount) {
             let polys = [],
@@ -217,6 +254,7 @@ export async function fdm_prepare(widgets, settings, update) {
         }
 
         // recompute bounds for purge block offsets
+        if (supportBrim) brims.push(...supportBrim.base);
         let bbounds = newBounds();
         brims.forEach(brim => {
             bbounds.merge(brim.bounds);
