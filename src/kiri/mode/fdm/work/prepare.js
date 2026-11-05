@@ -1112,6 +1112,67 @@ export async function fdm_prepare(widgets, settings, update) {
  * @param {*} output output prebuffer
  * @param {*} opt options
  */
+// bead cross section (as export.js extrudePerMM): width x height with round sides
+function beadArea(w, h) {
+    return w > h ? (w - h) * h + Math.PI * h * h / 4 : Math.PI * w * w / 4 * (h / w);
+}
+
+function insideRing(points, x, y) {
+    let inside = false;
+    for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+        const a = points[i], b = points[j];
+        if ((a.y > y) !== (b.y > y) && x < (b.x - a.x) * (y - a.y) / (b.y - a.y) + a.x) inside = !inside;
+    }
+    return inside;
+}
+
+// the part on one layer, for "is this point over it, and how far off"
+// (segments bucketed on a 2 mm grid)
+function layerProbe(polys) {
+    const cell = 2, grid = new Map(), rings = [];
+    for (const poly of polys || []) {
+        for (const ring of [ poly, ...(poly.inner || []) ]) {
+            const pts = ring.points;
+            rings.push({ poly, pts, hole: ring !== poly });
+            for (let i = 0; i < pts.length; i++) {
+                const a = pts[i], b = pts[(i + 1) % pts.length];
+                const x0 = Math.floor(Math.min(a.x, b.x) / cell), x1 = Math.floor(Math.max(a.x, b.x) / cell);
+                const y0 = Math.floor(Math.min(a.y, b.y) / cell), y1 = Math.floor(Math.max(a.y, b.y) / cell);
+                for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) {
+                    const k = x * 100003 + y;
+                    let l = grid.get(k); if (!l) grid.set(k, l = []);
+                    l.push(a, b);
+                }
+            }
+        }
+    }
+    return {
+        inside(x, y) {
+            for (const poly of polys || []) {
+                if (!insideRing(poly.points, x, y)) continue;
+                if (!(poly.inner || []).some(h => insideRing(h.points, x, y))) return true;
+            }
+            return false;
+        },
+        // distance to the nearest outline within range (Infinity beyond)
+        dist(x, y, range) {
+            let best = Infinity;
+            const r = Math.ceil(range / cell), cx = Math.floor(x / cell), cy = Math.floor(y / cell);
+            for (let i = -r; i <= r; i++) for (let j = -r; j <= r; j++) {
+                const l = grid.get((cx + i) * 100003 + cy + j);
+                if (!l) continue;
+                for (let k = 0; k < l.length; k += 2) {
+                    const a = l[k], b = l[k + 1], dx = b.x - a.x, dy = b.y - a.y;
+                    const len = dx * dx + dy * dy;
+                    const t = len ? Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / len)) : 0;
+                    best = Math.min(best, Math.hypot(x - a.x - t * dx, y - a.y - t * dy));
+                }
+            }
+            return best;
+        }
+    };
+}
+
 function slicePrintPath(print, slice, startPoint, offset, output, opt = {}) {
     const { settings } = print;
     const { device } = settings;
@@ -1191,13 +1252,14 @@ function slicePrintPath(print, slice, startPoint, offset, output, opt = {}) {
         if (outputSpeedSparse && !opt.infillSpeed) infillSpeed = outputSpeedSparse;
         if (outputSpeedGap) gapSpeed = outputSpeedGap;
         if (outputSpeedTop && slice.isFlatsLayer) fillSpeed = outputSpeedTop;
-        if (outputSpeedBridge && slice.isBridgeLayer) fillSpeed = outputSpeedBridge;
     }
 
     // override: adapt bridge layer speed and flats
     // but not on the first layer which has it's own settings
     // (not when the top / bridge speed is set: then that speed applies)
-    if (slice.index > 0 && ((slice.isBridgeLayer && !(featureSpeeds && outputSpeedBridge)) ||
+    // bridge lines get their own speed per line (below), not the whole layer
+    const lineBridges = !firstLayer && !opt.speed && slice.bridges?.length > 0;
+    if (slice.index > 0 && ((slice.isBridgeLayer && !(featureSpeeds && outputSpeedBridge && lineBridges)) ||
         (slice.isFlatsLayer && !slice.isBridgeLayer && !(featureSpeeds && outputSpeedTop)))) {
         fillSpeed /= 2;
         printSpeed /= 2;
@@ -1206,6 +1268,51 @@ function slicePrintPath(print, slice, startPoint, offset, output, opt = {}) {
     if (!(featureSpeeds && outputSpeedGap)) gapSpeed = fillSpeed;
     // small perimeters (holes, pins): a loop shorter than a circle of this radius
     const smallLoop = featureSpeeds && outputSpeedSmall ? 2 * Math.PI * (outputSmallRadius || 6.5) : 0;
+
+    // line widths per feature (Orca): extrusion scales with the bead's cross
+    // section against the base line width export.js computes with
+    const layerH = slice.height || process.sliceHeight;
+    const widthOf = key => {
+        const w = firstLayer && process.sliceLineWidthFirst > 0 ? process.sliceLineWidthFirst : process[key];
+        return w > 0 ? w : nozzleSize;
+    };
+    const widthMult = key => beadArea(widthOf(key), layerH) / beadArea(nozzleSize, layerH);
+
+    // bridges (Orca): solid lines over the air below get their own flow,
+    // speed and fan; overhanging walls slow down and get the overhang fan
+    const { outputBridgeFlow, outputOverhangFan, outputOverhangFanThreshold } = process;
+    const overFan = outputOverhangFan >= 0 && !firstLayer ? Math.round(outputOverhangFan * 2.55) : undefined;
+    const bridgeProbe = lineBridges ? layerProbe(slice.bridges) : null;
+    const overSpeeds = [ process.outputSpeedOver1, process.outputSpeedOver2, process.outputSpeedOver3, process.outputSpeedOver4 ];
+    const wantOverhang = !firstLayer && !opt.speed && slice.down && (overSpeeds.some(v => v > 0) || overFan !== undefined);
+    const belowProbe = wantOverhang ? layerProbe(slice.down.topPolys ? slice.down.topPolys() : []) : null;
+
+    // outputs from index `from` on: wall segments hanging past the layer below
+    function markOverhangs(from, width) {
+        if (!belowProbe) return;
+        let lp = from > 0 ? preout[from - 1]?.point : null;
+        for (let i = from; i < preout.length; i++) {
+            const o = preout[i];
+            const p = o.point;
+            if (o.emit && p && lp) {
+                const mx = (lp.x + p.x) / 2, my = (lp.y + p.y) / 2;
+                let frac = 0;
+                if (!belowProbe.inside(mx, my)) {
+                    const d = belowProbe.dist(mx, my, width * 1.5);
+                    frac = d === Infinity ? 1 : Math.min(1, (d + width / 2) / width);
+                } else {
+                    const d = belowProbe.dist(mx, my, width);
+                    if (d < width / 2) frac = (width / 2 - d) / width;
+                }
+                if (frac > 0) {
+                    const q = Math.min(3, Math.floor(frac * 4 - 1e-9));
+                    if (overSpeeds[q] > 0) o.speed = Math.min(o.speed, overSpeeds[q]);
+                    if (overFan !== undefined && frac >= (outputOverhangFanThreshold ?? 0.5)) o.fan = overFan;
+                }
+            }
+            if (p) lp = p;
+        }
+    }
 
     function retract() {
         let array = preout.length ? preout : output;
@@ -1432,12 +1539,14 @@ function slicePrintPath(print, slice, startPoint, offset, output, opt = {}) {
             let scarf = (slice.index > 0 && traceNo === 0 && z - startPoint?.z > 1e-3) ? scarfLength : 0;
             // mark outer vs inner walls so export can apply their own accelerations
             if (opt.shell) print.setType(poly.depth === 0 ? 'outer wall' : 'shells');
+            const wallKey = poly.depth === 0 ? 'sliceLineWidthOuter' : 'sliceLineWidthInner';
+            const from = preout.length;
             startPoint = print.polyPrintPath(poly, startPoint, preout, {
                 accel: finishShell,
                 arcOpts: fdmArcEnabled ? arcOpts : undefined,
                 ccw: opt.shell && process.outputAlternating && slice.index % 2,
                 coast: firstLayer ? 0 : coastDist,
-                extrude: numOrDefault(opt.extrude, shellMult),
+                extrude: numOrDefault(opt.extrude, shellMult) * (opt.shell ? widthMult(wallKey) : 1),
                 nozzleSize,
                 onfirst: (firstPoint, preout) => {
                     let from = seedPoint || startPoint;
@@ -1454,6 +1563,7 @@ function slicePrintPath(print, slice, startPoint, offset, output, opt = {}) {
                 tool: extruder,
                 zmax
             });
+            if (opt.shell) markOverhangs(from, widthOf(wallKey));
             lastPoly = slice.lastPoly = poly;
         }
     }
@@ -1629,7 +1739,17 @@ function slicePrintPath(print, slice, startPoint, offset, output, opt = {}) {
             near = opt.near ?? (antiBacklash ? false : true),
             fast = opt.fast ?? false, // support infill only!
             fill = (opt.fill >= 0 ? opt.fill : fillMult) * flow,
-            thinDist = near ? thinWall : thinWall;
+            thinDist = near ? thinWall : thinWall,
+            bridges = opt.bridges;
+        // a solid line over the air below: bridge flow, speed and fan
+        const emitLine = (a, b) => {
+            if (bridges && bridges.inside((a.x + b.x) / 2, (a.y + b.y) / 2)) {
+                const out = print.addOutput(preout, b, fill * (outputBridgeFlow || 1), outputSpeedBridge || fillSpeed, extruder);
+                if (overFan !== undefined && out) out.fan = overFan;
+                return;
+            }
+            print.addOutput(preout, b, fill, fillSpeed, extruder);
+        };
 
         // continue until all lines in array are "marked" as used
         while (lines && marked < lines.length) {
@@ -1757,7 +1877,7 @@ function slicePrintPath(print, slice, startPoint, offset, output, opt = {}) {
                 } else {
                     print.addOutput(preout, p1, 0, moveSpeed, extruder);
                 }
-                print.addOutput(preout, p2, fill, fillSpeed, extruder);
+                emitLine(p1, p2);
             }
 
             startPoint = p2;
@@ -1932,10 +2052,10 @@ function slicePrintPath(print, slice, startPoint, offset, output, opt = {}) {
 
             // then output solid and sparse fill
             print.setType('solid fill');
-            outputFills(next.fill_lines, { flow: fillMult, raft: isRaft });
+            outputFills(next.fill_lines, { flow: isRaft ? 1 : widthMult('sliceLineWidthSolid'), raft: isRaft, bridges: isRaft ? null : bridgeProbe });
 
             print.setType('sparse infill');
-            outputSparse(next.fill_sparse, sparseMult, infillSpeed);
+            outputSparse(next.fill_sparse, sparseMult * widthMult('sliceLineWidthSparse'), infillSpeed);
 
             // ironing: a low flow pass over the island's exposed top surface
             let iron = !firstLayer && !isRaft && ironLines(next);
@@ -2011,11 +2131,8 @@ function slicePrintPath(print, slice, startPoint, offset, output, opt = {}) {
     // add offset points to total print
     print.addPrintPoints(preout, output);
 
-    // bridge layer fan change
-    if (preout.length && slice.isBridgeLayer) {
-        preout[0].fan = Math.round(fanSpeed / 3);
-        preout.peek().fan = fanSpeed;
-    }
+    // (Kiri used to drop the fan to a third on bridge layers; bridges now get
+    // the overhang fan per line, as in Orca)
 
     // create next layer start point and annotate
     // with print time for previous layer (hack to

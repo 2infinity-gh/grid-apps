@@ -91,12 +91,18 @@ function slicerPostProcessor(data, options) {
     }
     const count = sliceShells;
     const offset =  shellOffset;
+    // walls by their own widths (Orca): the outer wall's centre half its width
+    // in, then the next ones a mean width apart; the first layer its own width
+    const firstLayer = post_args.widthFirst > 0 && z <= post_args.firstTop + 0.001;
+    const wallOuter = firstLayer ? post_args.widthFirst : post_args.widthOuter || offset;
+    const wallInner = firstLayer ? post_args.widthFirst : post_args.widthInner || offset;
+    const wallStep = (wallOuter + wallInner) / 2;
     const fillOff = fillOffset;
     const thinType = process.sliceDetectThin;
     const nutops = [];
     // co-locate shell processing with top generation in slicer
     for (let top of data.tops) {
-        nutops.push(layerProcessTop(z, top, count, offset/2, offset, fillOff, {
+        nutops.push(layerProcessTop(z, top, count, wallOuter/2, wallStep, fillOff, {
             thinType,
             vaseMode,
             useAssembly

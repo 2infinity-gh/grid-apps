@@ -91,6 +91,7 @@ export function fdm_export(print, online, ondone, ondebug) {
         lastNozzleTemp = nozzleTemp,
         lastBedTemp = bedTemp,
         lastFanSpeed = fanSpeed,
+        layerFan = fanSpeed,
         subst = {
             minx: bounds.min.x + offset.x,
             maxx: bounds.max.x + offset.x,
@@ -699,6 +700,8 @@ export function fdm_export(print, online, ondone, ondebug) {
             }
         }
 
+        layerFan = fanSpeed;
+
         // layer temp and fan overrides at layer changes
         if (fanSpeed !== lastFanSpeed) {
             appendAllSub(gcodeFan);
@@ -742,7 +745,8 @@ export function fdm_export(print, online, ondone, ondebug) {
                 speedMMM = Math.min(speedMMM, mvs / ((lineWidth || extruder.extNozzle) * h) * 60);
             }
             if (!isBelt) {
-                fanSpeed = out.fan ?? fanSpeed;
+                // a segment's own fan (bridges, overhangs) is for that segment only
+                fanSpeed = out.fan ?? layerFan;
             }
 
             // hint to controller that we're working on a specific object
@@ -873,6 +877,7 @@ export function fdm_export(print, online, ondone, ondebug) {
 
             // run fan speed macro when value changes
             if (fanSpeed !== lastFanSpeed) {
+                subst.fan_speed = subst.speed = fanSpeed;
                 appendAllSub(gcodeFan);
                 lastFanSpeed = fanSpeed;
             }
