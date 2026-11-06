@@ -82,6 +82,7 @@ const MAP = {
     support_bottom_z_distance:    v => ({ sliceSupportGapBottom: v }),
     support_object_xy_distance:   v => ({ sliceSupportOffset: v }),
     // Orca: overhang slope from horizontal; Kiri: max overhang from vertical
+    support_on_build_plate_only:  v => ({ sliceSupportPlateOnly: v === true || String(v) === '1' || String(v) === 'true' }),
     support_threshold_angle:      v => v > 0 ? ({ sliceSupportAngle: 90 - v }) : ({}),
     seam_position:                v => ({ sliceLayerStart: { nearest: 'last', aligned: 'aligned', back: 'back', random: 'random' }[v] ?? 'last' }),
     // accelerations (mm/s²); 0 = machine default

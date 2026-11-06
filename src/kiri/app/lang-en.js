@@ -545,6 +545,8 @@ self.lang['en-us'] = {
     sp_gtop_l:      ["gap between the top of the support","and the part resting on it","in millimeters, rounded up","to whole layers (0 = none)"],
     sp_gbot_s:      "bottom z distance",
     sp_gbot_l:      ["gap between the part and support","standing on it","in millimeters, rounded up","to whole layers (0 = none)"],
+    sp_plat_s:      "build plate only",
+    sp_plat_l:      ["only support that stands on the build plate,","none on top of the model (Orca: on build plate only)"],
     sp_outl_s:      "enclosed",
     sp_outl_l:      ["enclose support pattern","inside a perimeter shell"],
     sp_ifly_s:      "interface layers",

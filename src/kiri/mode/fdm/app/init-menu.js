@@ -140,6 +140,7 @@ export function menu() {
     sliceSupportExtra:   newInput(LANG.sp_xpnd_s, {title:LANG.sp_xpnd_l, convert:toFloat, bound:bound(0.0,10.0)}),
     // sliceSupportSpan:    newInput(LANG.sp_span_s, {title:LANG.sp_span_l, convert:toFloat, bound:bound(0.0,200.0), show:() => ui.sliceSupportEnable.checked }),
     separator:           newBlank({ class:"set-sep", driven }),
+    sliceSupportPlateOnly: newBoolean(LANG.sp_plat_s, onBooleanClick, {title:LANG.sp_plat_l}),
     sliceSupportOutline: newBoolean(LANG.sp_outl_s, onBooleanClick, {title:LANG.sp_outl_l, xshow: () => !isTree() }),
     sliceSupportGapTop:  newInput(LANG.sp_gtop_s, {title:LANG.sp_gtop_l, convert:toFloat, bound:bound(0.0,5.0)}),
     sliceSupportInterface: newInput(LANG.sp_ifly_s, {title:LANG.sp_ifly_l, convert:toInt, bound:bound(0,20)}),

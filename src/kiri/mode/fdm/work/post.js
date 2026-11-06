@@ -99,13 +99,19 @@ function slicerPostProcessor(data, options) {
     const firstLayer = post_args.widthFirst > 0 && z <= post_args.firstTop + 0.001;
     const wallOuter = firstLayer ? post_args.widthFirst : post_args.widthOuter || offset;
     const wallInner = firstLayer ? post_args.widthFirst : post_args.widthInner || offset;
-    const wallStep = (wallOuter + wallInner) / 2;
+    // Orca spaces walls by their spacing, not their width: the rounded sides
+    // of neighbouring beads overlap, spacing = width - height * (1 - pi/4)
+    const wallHeight = (firstLayer ? post_args.firstTop : process.sliceHeight) || 0;
+    const spaceOf = w => Math.max(w * 0.5, w - wallHeight * (1 - Math.PI / 4));
+    const wallStep = (spaceOf(wallOuter) + spaceOf(wallInner)) / 2;
+    const wallRest = spaceOf(wallInner);
     const fillOff = fillOffset;
     const thinType = process.sliceDetectThin;
     const nutops = [];
     // co-locate shell processing with top generation in slicer
     for (let top of data.tops) {
         nutops.push(layerProcessTop(z, top, count, wallOuter/2, wallStep, fillOff, {
+            offsetRest: wallRest,
             thinType,
             vaseMode,
             useAssembly
@@ -178,14 +184,14 @@ function splitColorTops(tops, z, paint, baseTool) {
 }
 
 function offset_default(params) {
-    let { z, top, count, top_poly, offset1, offsetN, wasm, last, gaps, thin } = params;
+    let { z, top, count, top_poly, offset1, offsetN, offsetRest, wasm, last, gaps, thin } = params;
 
     let first;
 
     // standard wall offsetting strategy
     POLY.offset(
         top_poly,
-        [-offset1, -offsetN],
+        offsetRest ? [-offset1, -offsetN, -offsetRest] : [-offset1, -offsetN],
         {
             z,
             wasm,
@@ -836,6 +842,7 @@ export function layerProcessTop(z, top, count, offset1, offsetN, fillOffset, opt
                 default:
                     ret = offset_default({
                         z, top, count, top_poly, offset1, offsetN, wasm,
+                        offsetRest: opt.offsetRest,
                         thin: ttype === 'basic'
                     });
                     break;

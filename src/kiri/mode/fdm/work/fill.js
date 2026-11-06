@@ -203,7 +203,12 @@ function fillGrid(target) {
     let span_x = bounds.max.x - bounds.min.x;
     let span_y = bounds.max.y - bounds.min.y;
     let offset = target.offset() / 2;
-    let tile = (1 / target.density()) * target.lineWidth();
+    // Orca's grid density: line length per area = density / line spacing,
+    // spacing = width - height * (1 - pi/4); the zig-zag tile's diagonal
+    // gives sqrt(2) / tile, so tile = sqrt(2) * spacing / density
+    let width = target.lineWidth();
+    let spacing = height > 0 ? Math.max(width * 0.5, width - height * (1 - Math.PI / 4)) : width;
+    let tile = Math.SQRT2 * spacing / target.density();
     let tile_x = tile + offset;
     let tile_xc = span_x / tile_x;
     let tile_yc = span_y / tile;

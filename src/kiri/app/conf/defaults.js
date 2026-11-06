@@ -398,6 +398,7 @@ export const conf = {
                 sliceSupportNozzle: 0,
                 sliceSupportOffset: 1.0,
                 sliceSupportOutline: true,
+                sliceSupportPlateOnly: false,
                 // sliceSupportSpan: 5,
                 sliceSupportType: "disabled",
                 sliceSupportTree: false,

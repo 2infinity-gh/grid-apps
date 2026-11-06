@@ -71,6 +71,7 @@ const POLYS = {
     subtract,
     toClipper,
     trimTo,
+    intersect,
     union,
     unionFaces,
     xor,
@@ -654,6 +655,28 @@ export function xor(set, z) {
  * @param {Polygon[]} setB mask set
  * @returns {Polygon[]}
  */
+/**
+ * intersection of two polygon sets in one clipper pass (trimTo pairs every
+ * polygon of A with every one of B, slow on detailed layers). Each set should
+ * be non-overlapping (union'd), as even-odd filling is used.
+ */
+export function intersect(setA, setB, z, minArea) {
+    if (!setA?.length || !setB?.length) return [];
+    let min = numOrDefault(minArea, 0.001),
+        clip = new Clipper(),
+        tree = new PolyTree(),
+        out = [];
+    clip.AddPaths(toClipper(setA), PathSubject, true);
+    clip.AddPaths(toClipper(setB), PathClip, true);
+    if (clip.Execute(ClipIntersect, tree, FillEvenOdd, FillEvenOdd)) {
+        cleanClipperTree(tree);
+        for (let poly of fromClipperTree(tree, z, null, null, min)) {
+            if (poly.area() >= min && poly.length > 2) out.push(poly);
+        }
+    }
+    return out;
+}
+
 export function trimTo(setA, setB, opt = {}) {
     // handle null/empty slices
     if (setA === setB || setA === null || setB === null) {

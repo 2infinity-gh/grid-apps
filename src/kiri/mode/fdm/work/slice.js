@@ -577,6 +577,26 @@ export function sliceOne(settings, widget, onupdate, ondone) {
             }
         }
 
+        // build plate only (Orca): the model's footprint below each layer,
+        // grown by the support gap; overhangs above it get no support
+        let plateOnly = process.sliceSupportPlateOnly ? [] : null;
+        if (plateOnly) {
+            let below = [];
+            for (let slice of stack) {
+                plateOnly.push(below);
+                const tops = slice.topPolys() || [];
+                if (tops.length) {
+                    const grown = POLY.offset(tops, process.sliceSupportOffset || 0, { z: slice.z }) || tops;
+                    below = POLY.union([...below, ...grown], 0, true);
+                }
+            }
+            stack.forEach((slice, i) => {
+                if (slice.shadow?.length && plateOnly[i].length) {
+                    slice.shadow = POLY.subtract(slice.shadow, plateOnly[i], [], null, slice.z, 0) || [];
+                }
+            });
+        }
+
         // 1. accumulate / union shadow coverage top down
         // 2. trim to area outside slice.clips
         let minArea = lineWidth * lineWidth;
@@ -635,6 +655,13 @@ export function sliceOne(settings, widget, onupdate, ondone) {
             // if (devel) slice.output().setLayer("shadow", 0xff0000).addPolys(shadow);
             trackupdate((++count/length), div[1].lo, div[1].hi, "support");
         }
+
+        // build plate only: drop what still ends up over the model (branches)
+        if (plateOnly) stack.forEach((slice, i) => {
+            if (slice.supports?.length && plateOnly[i].length) {
+                slice.supports = POLY.subtract(slice.supports, plateOnly[i], [], null, slice.z, lineWidth * lineWidth) || [];
+            }
+        });
 
         // TODO layerDiff shadows to identify tops/bottoms of pillars
         if (false) {
@@ -746,28 +773,48 @@ export function sliceOne(settings, widget, onupdate, ondone) {
         // where they lie over or under it; slivers thinner than a line drop
         if (process.sliceVerticalShells && !vaseMode) {
             profileStart("vertical-shells");
-            const half = lineWidth / 2;
-            const open = (s, key) => {
-                const polys = s[key] || [];
-                return polys.length ? POLY.offset(POLY.offset(polys, -half, { z: s.z }) || [], half, { z: s.z }) || [] : [];
-            };
-            const tops = s => s._vtop ?? (s._vtop = open(s, 'flats'));
-            const bottoms = s => s._vbot ?? (s._vbot = open(s, 'bridges'));
+            // Orca discover_vertical_shells (ensure_all): this layer's infill
+            // turns solid (1) under/over the top/bottom surfaces of the layers
+            // within the shell count and (2) where any of those layers has no
+            // infill (a wall or the outside there: sloped and curved sides);
+            // then regularized: slivers thinner than a line drop, sparse gaps
+            // narrower than 1.2 lines close into solid
+            const solidW = fillSpacing;
+            const sp = Math.max(solidW * 0.5, solidW - sliceHeight * (1 - Math.PI / 4)) * 1.05;
+            const r1 = 0.5 * 0.65 * sp, r2 = 0.5 * 1.2 * sp, tiny = 0.2 * sp, grow = sp * 0.05;
+            const fillOf = s => s._vfill ?? (s._vfill = POLY.union((s.tops || []).map(t => t.fill_off || []).flat(), 0, true));
+            const tops = s => s._vtop ?? (s._vtop = s.flats?.length ? POLY.offset(s.flats, grow, { z: s.z }) || [] : []);
+            const bottoms = s => s._vbot ?? (s._vbot = s.bridges?.length ? POLY.offset(s.bridges, grow, { z: s.z }) || [] : []);
+            const off = (polys, d, z) => polys.length ? POLY.offset(polys, d, { z }) || [] : [];
             for (const slice of slices) {
-                const params = slice.params || process;
-                const up = Math.max(params.sliceTopLayers || 0, 1), down = Math.max(params.sliceBottomLayers || 0, 1);
-                const near = [];
-                // a top surface above shells the layers below it, a bottom one those above
-                for (let s = slice.up, n = 0; s && n < up; s = s.up, n++) near.push(...tops(s));
-                for (let s = slice.down, n = 0; s && n < down; s = s.down, n++) near.push(...bottoms(s));
-                if (!near.length) continue;
-                const inner = (slice.tops || []).map(t => t.fill_off || []).flat();
+                const inner = fillOf(slice);
                 if (!inner.length) continue;
-                let add = POLY.trimTo(inner, POLY.union(near, 0, true), { minArea: lineWidth * lineWidth * 4 }) || [];
-                if (add.length) add = POLY.offset(POLY.offset(add, -half, { z: slice.z }) || [], half, { z: slice.z }) || [];
-                if (add.length) slice.solids.appendAll(POLY.setZ(add, slice.z));
+                const params = slice.params || process;
+                // Orca: the surface layer counts as one of the shell layers
+                const up = Math.max(0, (params.sliceTopLayers || 0) - 1), down = Math.max(0, (params.sliceBottomLayers || 0) - 1);
+                const shell = [];
+                let holes = inner;
+                const near = (s, surf) => {
+                    shell.push(...surf(s));
+                    const f = fillOf(s);
+                    holes = holes.length && f.length ? POLY.intersect(holes, f, slice.z) : [];
+                };
+                const tUp = params.sliceTopThickness || 0, tDown = params.sliceBottomThickness || 0;
+                for (let s = slice.up, n = 0; s && (n < up || s.z - slice.z < tUp - 1e-3); s = s.up, n++) near(s, tops);
+                for (let s = slice.down, n = 0; s && (n < down || slice.z - s.z < tDown - 1e-3); s = s.down, n++) near(s, bottoms);
+                const z = slice.z;
+                const add = shell.length ? POLY.intersect(inner, POLY.union(shell, 0, true), z) : [];
+                add.push(...(holes.length ? POLY.subtract(inner, holes, [], null, z, 0.001) || [] : inner));
+                if (!add.length) continue;
+                // regularize (Orca): open, close narrow sparse gaps, slight overlap
+                let reg = POLY.union([...add, ...(slice.solids || [])], 0, true);
+                reg = off(off(off(reg, -r1, z), r1 + r2, z), -(r2 - tiny), z);
+                reg = reg.filter(p => p.areaDeep() >= sp * 1.5);
+                if (!reg.length) continue;
+                const solid = POLY.intersect(inner, POLY.union(reg, 0, true), z);
+                if (solid.length) slice.solids.appendAll(POLY.setZ(solid, z));
             }
-            for (const slice of slices) { delete slice._vtop; delete slice._vbot; }
+            for (const slice of slices) { delete slice._vtop; delete slice._vbot; delete slice._vfill; }
             profileEnd();
         }
         // union solid areas
@@ -783,9 +830,12 @@ export function sliceOne(settings, widget, onupdate, ondone) {
         const sparseMin = process.sliceSparseMinArea ?? 15;
         if (sparseMin > 0 && !vaseMode) {
             profileStart("sparse-min");
-            const grow = Math.max(0, fillOffset - widthOf('sliceLineWidthInner') / 2);
+            // the inner wall's edge lies half its spacing (Orca) past its centre
+            const wIn = widthOf('sliceLineWidthInner');
             forSlices(div[2].lo, div[2].hi, slice => {
                 if (!slice.solids) return;
+                const space = Math.max(wIn * 0.5, wIn - (slice.height || sliceHeight) * (1 - Math.PI / 4));
+                const grow = Math.max(0, fillOffset - space / 2);
                 const fill = (slice.tops || []).map(t => t.fill_off || []).flat();
                 if (!fill.length) return;
                 const sparse = slice.solids.length ? (POLY.subtract(fill, slice.solids, [], null, slice.z) || []) : fill;
