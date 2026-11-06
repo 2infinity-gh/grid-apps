@@ -890,6 +890,8 @@ self.lang['en-us'] = {
     ou_fans_l:      "0 - 255",
     ou_layt_s:      "min layer time",
     ou_layt_l:      ["minimum allowable layer print time in seconds. printing will be slowed if the layer would outerwise complete in fewer seconds.","0 = disabled"],
+    ou_kout_s:      "keep outer speed",
+    ou_kout_l:      ["don't slow down outer walls for the min layer time","the other extrusions slow down more instead,","so the outer surface prints at one speed"],
 
     // OUTPUT CAM
     ou_toll_s:      "precision",

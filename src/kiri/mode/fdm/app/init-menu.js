@@ -126,6 +126,7 @@ export function menu() {
     outputFanLayer:      newInput(LANG.ou_fanl_s, { title:LANG.ou_fanl_l, convert:toInt,   bound:bound(0,255) }),
     outputFanSpeed:      newInput(LANG.ou_fans_s, {title:LANG.ou_fans_l, convert:toInt, bound:bound(0,255)}),
     outputMinLayerTime:  newInput(LANG.ou_layt_s, { title:LANG.ou_layt_l, convert:toInt,   bound:bound(0,200) }),
+    outputKeepOuterSpeed: newBoolean(LANG.ou_kout_s, onBooleanClick, {title:LANG.ou_kout_l}),
     outputFanMin:        newInput(LANG.ou_fmin_s, { title:LANG.ou_fmin_l, convert:toInt,   bound:bound(0,100) }),
     outputFanLayerTime:  newInput(LANG.ou_fcol_s, { title:LANG.ou_fcol_l, convert:toInt,   bound:bound(0,1000) }),
     outputOverhangFan:   newInput(LANG.ou_fovr_s, { title:LANG.ou_fovr_l, convert:toInt,   bound:bound(-1,100) }),

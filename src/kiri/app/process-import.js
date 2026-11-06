@@ -108,6 +108,7 @@ const MAP = {
     wipe_distance:                (v, p) => ({ outputRetractWipe: [1, '1', 'true'].includes(value(p.wipe)) ? v : 0 }),
     slow_down_layer_time:         v => ({ outputMinLayerTime: v }),
     slow_down_min_speed:          v => ({ outputMinSpeed: v }),
+    dont_slow_down_outer_wall:    v => ({ outputKeepOuterSpeed: v === 1 || v === 'true' || v === '1' }),
     fan_max_speed:                v => ({ outputFanSpeed: Math.round(v * 2.55) }),
     close_fan_the_first_x_layers: v => ({ outputFanLayer: v }),
     nozzle_temperature:           v => ({ outputTemp: v }),

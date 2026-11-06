@@ -306,6 +306,7 @@ export const conf = {
                 outputMaxFlowrate: 15,
                 outputMinLayerTime: 10,
                 outputMinSpeed: 5.0,
+                outputKeepOuterSpeed: false,
                 outputPurgeTower: 0,
                 outputRaft: false,
                 outputRaftSpacing: 0.2,

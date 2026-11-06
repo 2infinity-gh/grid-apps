@@ -2137,8 +2137,15 @@ function slicePrintPath(print, slice, startPoint, offset, output, opt = {}) {
 
     // adjust layer output speeds (by slowing them down)
     // if layer print time is less than minimum (required for cooling)
-    let lp, td = 0, tt = 0;
+    // (Orca's "don't slow down outer walls": outer walls keep their speed and
+    // the other extrusions slow down more to make up the layer time)
+    let lp, td = 0, tt = 0, tFixed = 0, ptype;
+    const keepOuter = process.outputKeepOuterSpeed;
+    const fixed = [];
     for (let p of preout) {
+        ptype = p.type ?? ptype;
+        const keep = keepOuter && ptype === 'outer wall';
+        fixed.push(keep);
         if (!p.emit) continue;
         let mms = p.speed ?? 1;
         let dst = lp?.distTo2D(p.point) ?? 0;
@@ -2147,15 +2154,18 @@ function slicePrintPath(print, slice, startPoint, offset, output, opt = {}) {
             tt += (dst/mms);
             td += dst;
             p.dst = dst;
+            if (keep) tFixed += dst/mms;
         }
     }
     if (minLayerTime && tt < minLayerTime) {
-        let fact = tt / minLayerTime;
-        for (let p of preout) {
-            if (p.emit) {
+        // the time the adjustable extrusions take now, and must take
+        let tAdj = tt - tFixed, need = minLayerTime - tFixed;
+        let fact = need > 0 ? tAdj / need : 0;
+        preout.forEach((p, i) => {
+            if (p.emit && !fixed[i]) {
                 p.speed = Math.max(p.speed * fact, minSpeed);
             }
-        }
+        });
     }
 
     // offset print points
