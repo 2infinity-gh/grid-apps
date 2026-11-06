@@ -5,6 +5,7 @@ import { getRangeParameters } from '../core/params.js';
 import { FDM } from './init-work.js';
 import { version } from '../../../../moto/license.js';
 import { estimator } from '../../../app/estimate.js';
+import { paModel } from './adaptive-pa.js';
 
 const { config } = base;
 const debug = false;
@@ -200,9 +201,8 @@ export function fdm_export(print, online, ondone, ondebug) {
 
     // per-feature acceleration, written like OrcaSlicer does for Klipper
     // (Kiri types only the first output of a feature, so keep the last one seen)
-    let lastAccel, feature;
-    function setAccel(type, emit, speed, path) {
-        type = feature = type ?? feature;
+    let lastAccel, feature, paFeature;
+    function accelFor(type, emit, path) {
         let accel;
         if (path.layer === 0 && process.outputAccelFirst) accel = process.outputAccelFirst;
         else if (!emit) accel = process.outputAccelTravel;
@@ -211,11 +211,45 @@ export function fdm_export(print, online, ondone, ondebug) {
         else if (type === 'top surface' || type === 'ironing') accel = process.outputAccelTop;
         else if (type === 'solid fill') accel = process.outputAccelSolid || process.outputAccelFill;
         else if (type === 'sparse infill' || type === 'thin fill') accel = process.outputAccelFill;
-        accel = accel || process.outputAccel;
+        return accel || process.outputAccel;
+    }
+    function setAccel(type, emit, speed, path) {
+        type = feature = type ?? feature;
+        const accel = accelFor(type, emit, path);
         if (accel && accel !== lastAccel) {
             append(`SET_VELOCITY_LIMIT ACCEL=${accel} ACCEL_TO_DECEL=${Math.round(accel / 2)}`);
             lastAccel = accel;
         }
+    }
+
+    // pressure advance: the slot's fixed value at each filament change and,
+    // with an adaptive model (Orca / ACN), a new value at the start of every
+    // feature and island from its flow (mm³/s) and acceleration
+    let lastPA;
+    const paModels = {};
+    const paModelFor = t => {
+        if (!(t in paModels)) paModels[t] = paModel(filamentFor(t)?.paModel);
+        return paModels[t];
+    };
+    function setPA(pa) {
+        if (!(pa >= 0) || pa === lastPA) return;
+        append(paM900 ? `M900 K${pa}` : `SET_PRESSURE_ADVANCE ADVANCE=${pa}`);
+        lastPA = pa;
+    }
+    // the highest flow of the extrusion run starting at path[from], until
+    // the next travel or feature change (Orca uses the run's highest speed)
+    function runFlow(path, from, mm3OfEmit) {
+        let flow = 0;
+        for (let j = from; j < path.length; j++) {
+            const o = path[j];
+            if (!o.point || !(o.emit > 0)) break;
+            if (j > from && o.type !== undefined && o.type !== feature) break;
+            const mm3 = mm3OfEmit(o.emit);
+            const mvs = filamentFor(tool)?.mvs;
+            flow = Math.max(flow, Math.min((o.speed || process.outputFeedrate) * mm3, mvs || Infinity));
+            if (o.retract) break;
+        }
+        return flow;
     }
 
     // override process values with the active slot's filament profile
@@ -623,7 +657,8 @@ export function fdm_export(print, online, ondone, ondebug) {
 
     subst.remain_time = Math.ceil(print.total_time / 60);
     if (extShared && filamentFor(tool)?.pa >= 0) {
-        append(paM900 ? `M900 K${filamentFor(tool).pa}` : `SET_PRESSURE_ADVANCE ADVANCE=${filamentFor(tool).pa}`);
+        lastPA = undefined;
+        setPA(filamentFor(tool).pa);
     }
     while (layer < layers.length) {
         path = layers[layer];
@@ -809,7 +844,8 @@ export function fdm_export(print, online, ondone, ondebug) {
                 // the swap may reset velocity limits: send the acceleration again
                 lastAccel = undefined;
                 if (extShared && filamentFor(tool)?.pa >= 0) {
-                    append(paM900 ? `M900 K${filamentFor(tool).pa}` : `SET_PRESSURE_ADVANCE ADVANCE=${filamentFor(tool).pa}`);
+                    lastPA = paFeature = undefined;
+                    setPA(filamentFor(tool).pa);
                 }
                 if (extShared) {
                     // single nozzle fed by a filament changer (e.g. Anycubic ACE):
@@ -831,6 +867,15 @@ export function fdm_export(print, online, ondone, ondebug) {
             }
 
             setAccel(type, emit, speed, path);
+
+            // adaptive PA at the first extrusion of a feature or island
+            const model = emit > 0 && extShared && paModelFor(tool);
+            if (model && (!laste || (type !== undefined && type !== paFeature))) {
+                const mm3OfEmit = e => emitPerMM * e * Math.PI * util.sqr(extruder.extFilament / 2);
+                const pa = model(runFlow(path, pidx, mm3OfEmit), accelFor(feature, emit, path) || 0);
+                setPA(pa >= 0 ? pa : filamentFor(tool).pa);
+            }
+            if (type !== undefined) paFeature = type;
 
             // translate point to workspace coordinates
             let x = point.x + offset_x + offset.x,

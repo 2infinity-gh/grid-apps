@@ -227,7 +227,10 @@ function gcodeConfig(text) {
 // the filament presets inside a resolved config (per filament lists), as
 // Orca-like presets for the filament library
 function configFilaments(cfg) {
-    const list = v => Array.isArray(v) ? v : typeof v === 'string' ? v.split(/;/).length > 1 ? v.split(';') : v.split(',') : [ v ];
+    // quoted values (names, the adaptive PA model) may hold commas themselves
+    const quoted = v => v.trim().startsWith('"') ? [ ...v.matchAll(/"((?:[^"\\]|\\.)*)"/g) ].map(m => m[1]) : null;
+    const list = v => Array.isArray(v) ? v : typeof v === 'string'
+        ? quoted(v) ?? (v.split(/;/).length > 1 ? v.split(';') : v.split(',')) : [ v ];
     const names = list(cfg.filament_settings_id || []).map(n => String(n).replace(/^"|"$/g, '').trim()).filter(n => n);
     return names.map((name, i) => {
         const json = { name, type: 'filament' };

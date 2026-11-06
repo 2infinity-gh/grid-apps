@@ -4,7 +4,8 @@
  * Profiles are imported from OrcaSlicer / Anycubic Slicer Next filament
  * presets (.json, or a .zip of them) and kept in settings.filaments:
  *   library: [ { name, type, color, temp, tempFirst, bed, bedFirst, flow,
- *                fanMax, fanOffLayers, mvs, retract, retractSpeed, pa } ]
+ *                fanMax, fanOffLayers, mvs, retract, retractSpeed, pa,
+ *                paModel (adaptive PA lines "PA,flow,accel") } ]
  *   slots:   [ profile name per slot ]
  * The FDM export applies the slot's profile at each filament change.
  */
@@ -42,6 +43,12 @@ function fromOrca(json) {
     const pick = (...keys) => keys.map(k => value(json[k])).find(v => v !== undefined);
     const pa = value(json.enable_pressure_advance) === 1 || json.enable_pressure_advance?.[0] === 'true'
         ? pick('pressure_advance') : undefined;
+    // adaptive PA: the model is text ("PA,flow,accel" per line), not a number
+    const rawModel = Array.isArray(json.adaptive_pressure_advance_model)
+        ? json.adaptive_pressure_advance_model[0] : json.adaptive_pressure_advance_model;
+    const flag = v => value(v) === 1 || String(Array.isArray(v) ? v[0] : v) === 'true';
+    const paModel = pa !== undefined && flag(json.adaptive_pressure_advance) && typeof rawModel === 'string'
+        ? rawModel.replace(/^"|"$/g, '').replace(/\\n/g, '\n').trim() || undefined : undefined;
     const fields = {
         type: pick('filament_type'),
         density: pick('filament_density'),
@@ -59,7 +66,8 @@ function fromOrca(json) {
         mvs: pick('filament_max_volumetric_speed'),
         retract: pick('filament_retraction_length'),
         retractSpeed: pick('filament_retraction_speed'),
-        pa
+        pa,
+        paModel
     };
     for (const k in fields) if (fields[k] === undefined) delete fields[k];
     return fields;
@@ -232,7 +240,7 @@ export function showFilaments() {
             if (p) {
                 card.appendChild(el('div', 'display:block;color:#555;font-size:12px', [
                     p.type || '?', `${p.temp}°C`, `bed ${p.bed}°C`,
-                    p.flow ? `flow ${p.flow}` : '', p.mvs ? `max ${p.mvs} mm³/s` : '', p.pa ? `PA ${p.pa}` : ''
+                    p.flow ? `flow ${p.flow}` : '', p.mvs ? `max ${p.mvs} mm³/s` : '', p.pa ? `PA ${p.pa}${p.paModel ? ' (adaptive)' : ''}` : ''
                 ].filter(v => v).join(' · ')));
             }
             box.appendChild(card);
