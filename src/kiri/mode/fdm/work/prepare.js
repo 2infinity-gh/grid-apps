@@ -2081,7 +2081,9 @@ function slicePrintPath(print, slice, startPoint, offset, output, opt = {}) {
             outputThin(next.thin_fill);
 
             // then output solid and sparse fill
-            print.setType('solid fill');
+            // a layer with a top surface prints its solid fill as top surface
+            // (speed and acceleration); others as internal solid fill
+            print.setType(slice.isFlatsLayer && !firstLayer && !isRaft ? 'top surface' : 'solid fill');
             // monotonic (Orca): top surfaces line by line across the area in
             // one order, not hopping to the nearest end, so the lines lie evenly
             const monotonic = process.outputMonotonic && !isRaft && !firstLayer &&
@@ -2120,6 +2122,19 @@ function slicePrintPath(print, slice, startPoint, offset, output, opt = {}) {
         }
     }
 
+    // cap speeds at the volumetric flowrate on the bead this line really lays
+    // down (width multiplier included, like Orca); before the layer time below
+    if (maxFlowRate) {
+        for (let p of preout) {
+            if (p.emit > 0 && p.speed) {
+                let vfr = beadArea(nozzles[p.tool], slice.height) * p.emit * p.speed;
+                if (vfr > maxFlowRate) {
+                    p.speed *= maxFlowRate / vfr;
+                }
+            }
+        }
+    }
+
     // adjust layer output speeds (by slowing them down)
     // if layer print time is less than minimum (required for cooling)
     let lp, td = 0, tt = 0;
@@ -2139,21 +2154,6 @@ function slicePrintPath(print, slice, startPoint, offset, output, opt = {}) {
         for (let p of preout) {
             if (p.emit) {
                 p.speed = Math.max(p.speed * fact, minSpeed);
-            }
-        }
-    }
-
-    // apply speed damping when output exceeds volumetric flowrate cap
-    if (maxFlowRate) {
-        for (let p of preout) {
-            if (p.emit && p.dst) {
-                let vfr = nozzles[p.tool] * slice.height * p.speed;
-                if (vfr > maxFlowRate) {
-                    let old = p.speed;
-                    let damp = maxFlowRate / vfr;
-                    p.speed = p.speed * damp;
-                    // console.log({ vfr, damp, old, new: p.speed });
-                }
             }
         }
     }

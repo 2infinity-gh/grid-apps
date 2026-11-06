@@ -848,8 +848,9 @@ export function layerProcessTop(z, top, count, offset1, offsetN, fillOffset, opt
         last = [top.poly];
     }
 
-    // renest deep because last[] could be nested
-    last = POLY.renest(last, true);
+    // renest deep because last[] could be nested; on copies, as nesting resets
+    // depth (the wall number: outer vs inner walls) and links of the shells
+    last = POLY.renest(last.map(p => p.clone(true)), true);
 
     // generate fill offset poly set from last offset to top.fill_off
     if (fillOffset && last.length > 0) {

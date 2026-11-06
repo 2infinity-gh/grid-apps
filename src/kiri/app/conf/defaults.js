@@ -409,6 +409,7 @@ export const conf = {
                 outputAccelInner: 0,
                 outputAccelFill: 0,
                 outputAccelTop: 0,
+                outputAccelSolid: 0,
                 outputAccelTravel: 0,
                 outputAccelFirst: 0,
                 // ironing of top surfaces

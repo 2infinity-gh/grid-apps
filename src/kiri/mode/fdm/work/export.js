@@ -32,6 +32,8 @@ export function fdm_export(print, online, ondone, ondebug) {
     let layers = print.output,
         extras = device.extras || {},
         isBambu = extras.bbl,
+        // Anycubic (Kobra X) takes pressure advance as M900 K, like its own slicer
+        paM900 = extras.m900 || [].concat(device.gcodePre || []).join('\n').includes('G9111'),
         { extrudeAbs } = device,
         { exportThumb } = controller,
         { extrudeMM, extrudePerMM } = FDM,
@@ -206,7 +208,8 @@ export function fdm_export(print, online, ondone, ondebug) {
         else if (!emit) accel = process.outputAccelTravel;
         else if (type === 'outer wall') accel = process.outputAccelOuter;
         else if (type === 'shells') accel = process.outputAccelInner;
-        else if (type === 'solid fill' || type === 'ironing') accel = process.outputAccelTop;
+        else if (type === 'top surface' || type === 'ironing') accel = process.outputAccelTop;
+        else if (type === 'solid fill') accel = process.outputAccelSolid || process.outputAccelFill;
         else if (type === 'sparse infill' || type === 'thin fill') accel = process.outputAccelFill;
         accel = accel || process.outputAccel;
         if (accel && accel !== lastAccel) {
@@ -620,7 +623,7 @@ export function fdm_export(print, online, ondone, ondebug) {
 
     subst.remain_time = Math.ceil(print.total_time / 60);
     if (extShared && filamentFor(tool)?.pa >= 0) {
-        append(`SET_PRESSURE_ADVANCE ADVANCE=${filamentFor(tool).pa}`);
+        append(paM900 ? `M900 K${filamentFor(tool).pa}` : `SET_PRESSURE_ADVANCE ADVANCE=${filamentFor(tool).pa}`);
     }
     while (layer < layers.length) {
         path = layers[layer];
@@ -738,11 +741,12 @@ export function fdm_export(print, online, ondone, ondebug) {
             let { center, emit, point, speed, type, widget } = out;
 
             speedMMM = (speed || process.outputFeedrate) * 60; // range
-            // cap extrusion speed to the filament's max volumetric speed
-            const mvs = emit && filamentFor(tool)?.mvs;
+            // cap extrusion speed to the filament's max volumetric speed, on the
+            // volume this line really extrudes (bead width and flow included, like Orca)
+            const mvs = emit > 0 && filamentFor(tool)?.mvs;
             if (mvs) {
-                const h = path.layer === 0 ? (process.firstSliceHeight || process.sliceHeight) : path.height;
-                speedMMM = Math.min(speedMMM, mvs / ((lineWidth || extruder.extNozzle) * h) * 60);
+                const mm3 = emitPerMM * emit * Math.PI * util.sqr(extruder.extFilament / 2);
+                speedMMM = Math.min(speedMMM, mvs / mm3 * 60);
             }
             if (!isBelt) {
                 // a segment's own fan (bridges, overhangs) is for that segment only
@@ -805,7 +809,7 @@ export function fdm_export(print, online, ondone, ondebug) {
                 // the swap may reset velocity limits: send the acceleration again
                 lastAccel = undefined;
                 if (extShared && filamentFor(tool)?.pa >= 0) {
-                    append(`SET_PRESSURE_ADVANCE ADVANCE=${filamentFor(tool).pa}`);
+                    append(paM900 ? `M900 K${filamentFor(tool).pa}` : `SET_PRESSURE_ADVANCE ADVANCE=${filamentFor(tool).pa}`);
                 }
                 if (extShared) {
                     // single nozzle fed by a filament changer (e.g. Anycubic ACE):

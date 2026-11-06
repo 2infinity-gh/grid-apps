@@ -90,6 +90,7 @@ const MAP = {
     inner_wall_acceleration:      v => ({ outputAccelInner: v }),
     sparse_infill_acceleration:   (v, p) => ({ outputAccelFill: pct(v) ? pct(v) * (value(p.default_acceleration) || 0) : v }),
     top_surface_acceleration:     v => ({ outputAccelTop: v }),
+    internal_solid_infill_acceleration: (v, p) => ({ outputAccelSolid: pct(v) ? pct(v) * (value(p.default_acceleration) || 0) : v }),
     travel_acceleration:          v => ({ outputAccelTravel: v }),
     initial_layer_acceleration:   v => ({ outputAccelFirst: v }),
     // ironing
@@ -99,7 +100,8 @@ const MAP = {
     ironing_speed:                v => ({ outputIronSpeed: v }),
     // retraction, wipe, cooling and temperatures (filament profiles override
     // these per slot; the process keeps them for slots without a profile)
-    retraction_length:            v => ({ outputRetractDist: v }),
+    // Orca has no pause after the un-retract
+    retraction_length:            v => ({ outputRetractDist: v, outputRetractDwell: 0 }),
     retraction_speed:             v => ({ outputRetractSpeed: v }),
     retract_when_changing_layer:  v => ({ outputLayerRetract: v === 1 || v === 'true' || v === '1' }),
     wipe_distance:                (v, p) => ({ outputRetractWipe: [1, '1', 'true'].includes(value(p.wipe)) ? v : 0 }),
