@@ -376,6 +376,7 @@ export const conf = {
                 sliceShells: 3,
                 sliceSolidify: false,
                 sliceSolidMinArea: 0.1,
+                sliceSparseMinArea: 15,
                 sliceSolidMinThick: 0.1,
                 sliceSupportAngle: 50,
                 sliceSupportDensity: 0.1,

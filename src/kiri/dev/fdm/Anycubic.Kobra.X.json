@@ -88,7 +88,7 @@
             "outputSpeedBridge": 30,
             "outputSpeedGap": 250,
             "outputSpeedSupport": 150,
-            "outputSpeedSmall": 100,
+            "outputSpeedSmall": 0,
             "outputSmallRadius": 6.5,
             "firstLayerElephant": 0.1,
             "sliceTopThickness": 1,

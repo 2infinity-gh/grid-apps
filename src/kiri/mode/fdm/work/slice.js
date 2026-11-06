@@ -735,36 +735,39 @@ export function sliceOne(settings, widget, onupdate, ondone) {
             const layersOf = (n, mm) => Math.max(n || 0, mm > 0 ? Math.ceil(mm / (params.sliceHeight || process.sliceHeight) - 0.01) : 0);
             topLayers = layersOf(params.sliceTopLayers, params.sliceTopThickness);
             bottomLayers = layersOf(params.sliceBottomLayers, params.sliceBottomThickness);
-            if (topLayers) projectFlats(slice, topLayers);
-            if (bottomLayers) projectBridges(slice, bottomLayers);
+            if (topLayers) projectFlats(slice, topLayers, 0, lineWidth);
+            if (bottomLayers) projectBridges(slice, bottomLayers, 0, lineWidth);
             if (slice.flats) POLY.setZ(slice.flats, slice.z);
         }, "layer deltas");
         profileEnd();
-        // ensure vertical shell thickness (Orca): where a layer above or below
-        // steps in or out (a dome, a slope), its surface comes closer than the
-        // wall thickness to this layer's infill; make that part solid
+        // ensure vertical shell thickness (Orca): the top and bottom surfaces
+        // of the layers within the shell count above and below (also the thin
+        // ones the projection leaves out) make this layer's infill solid
+        // where they lie over or under it; slivers thinner than a line drop
         if (process.sliceVerticalShells && !vaseMode) {
             profileStart("vertical-shells");
-            const wall = (process.sliceShells || 1) * lineWidth;
-            const band = s => s._vband ?? (s._vband = (() => {
-                const outline = s.topPolys();
-                const rest = [];
-                POLY.subtract(outline, POLY.offset(outline, -wall, { z: s.z }) || [], rest, null, s.z, lineWidth * lineWidth);
-                return rest;
-            })());
+            const half = lineWidth / 2;
+            const open = (s, key) => {
+                const polys = s[key] || [];
+                return polys.length ? POLY.offset(POLY.offset(polys, -half, { z: s.z }) || [], half, { z: s.z }) || [] : [];
+            };
+            const tops = s => s._vtop ?? (s._vtop = open(s, 'flats'));
+            const bottoms = s => s._vbot ?? (s._vbot = open(s, 'bridges'));
             for (const slice of slices) {
                 const params = slice.params || process;
                 const up = Math.max(params.sliceTopLayers || 0, 1), down = Math.max(params.sliceBottomLayers || 0, 1);
                 const near = [];
-                for (let s = slice.up, n = 0; s && n < up; s = s.up, n++) near.push(...band(s));
-                for (let s = slice.down, n = 0; s && n < down; s = s.down, n++) near.push(...band(s));
+                // a top surface above shells the layers below it, a bottom one those above
+                for (let s = slice.up, n = 0; s && n < up; s = s.up, n++) near.push(...tops(s));
+                for (let s = slice.down, n = 0; s && n < down; s = s.down, n++) near.push(...bottoms(s));
                 if (!near.length) continue;
-                const inner = POLY.offset(slice.topPolys(), -wall, { z: slice.z }) || [];
+                const inner = (slice.tops || []).map(t => t.fill_off || []).flat();
                 if (!inner.length) continue;
-                const add = POLY.trimTo(inner, POLY.union(near, 0, true), { minArea: lineWidth * lineWidth * 4 }) || [];
+                let add = POLY.trimTo(inner, POLY.union(near, 0, true), { minArea: lineWidth * lineWidth * 4 }) || [];
+                if (add.length) add = POLY.offset(POLY.offset(add, -half, { z: slice.z }) || [], half, { z: slice.z }) || [];
                 if (add.length) slice.solids.appendAll(POLY.setZ(add, slice.z));
             }
-            for (const slice of slices) delete slice._vband;
+            for (const slice of slices) { delete slice._vtop; delete slice._vbot; }
             profileEnd();
         }
         // union solid areas
@@ -775,6 +778,25 @@ export function sliceOne(settings, widget, onupdate, ondone) {
             }
         });
         profileEnd();
+        // small sparse areas print solid (Orca's minimum sparse infill area,
+        // measured like Orca up to the inner wall's edge, not the fill inset)
+        const sparseMin = process.sliceSparseMinArea ?? 15;
+        if (sparseMin > 0 && !vaseMode) {
+            profileStart("sparse-min");
+            const grow = Math.max(0, fillOffset - widthOf('sliceLineWidthInner') / 2);
+            forSlices(div[2].lo, div[2].hi, slice => {
+                if (!slice.solids) return;
+                const fill = (slice.tops || []).map(t => t.fill_off || []).flat();
+                if (!fill.length) return;
+                const sparse = slice.solids.length ? (POLY.subtract(fill, slice.solids, [], null, slice.z) || []) : fill;
+                const small = sparse.filter(poly => {
+                    const area = grow ? (POLY.offset([poly], grow, { z: slice.z }) || []).reduce((a, p) => a + p.areaDeep(), 0) : poly.areaDeep();
+                    return area <= sparseMin;
+                });
+                if (small.length) slice.solids = POLY.union([...slice.solids, ...POLY.setZ(small, slice.z)], 0, true);
+            });
+            profileEnd();
+        }
     }
 
     /**
@@ -1863,7 +1885,7 @@ function supportPolyFill({ promises, polys, lineWidth, density, z, isBelt, angle
  * @param {boolean} args.up - Project upward (true) or downward (false)
  * @param {boolean} args.first - First projection (hint fill angles)
  */
-function projectSolid({ slice, polys, count, up, first }) {
+function projectSolid({ slice, polys, count, up, first, rest }) {
     if (slice && !up && count === 1) {
         slice.isBridgeLayer = true;
     }
@@ -1889,7 +1911,7 @@ function projectSolid({ slice, polys, count, up, first }) {
         projectSolid({
             count: count - 1,
             first: false,
-            polys,
+            polys: rest ?? polys,
             slice: up ? slice.up : slice.down,
             up
         });
@@ -1899,27 +1921,39 @@ function projectSolid({ slice, polys, count, up, first }) {
 /**
  * project bottom flats down into part
  */
-export function projectFlats(slice, count, expand) {
+export function projectFlats(slice, count, expand, width) {
     if (!slice.down || !slice.flats) return;
     // these flats are marked for finishing print speed
     if (slice.flats?.length) {
-        slice.finishSolids = true;
-        slice.isFlatsLayer = true;
         const polys = expand ? POLY.expand(slice.flats, expand) : slice.flats;
-        projectSolid({ slice, polys, count, up: false, first: true });
+        const rest = shellsOf(polys, width, slice.z);
+        // a top surface layer only for a real surface, not slivers of a slope
+        if (!width || rest.length) {
+            slice.finishSolids = true;
+            slice.isFlatsLayer = true;
+        }
+        projectSolid({ slice, polys, count, up: false, first: true, rest });
     }
 }
 
 /**
  * project top bridges up into part
  */
-export function projectBridges(slice, count, expand) {
+export function projectBridges(slice, count, expand, width) {
     if (!slice.up || !slice.bridges) return;
     // these bridges are marked for finishing print speed
     if (slice.bridges?.length) {
         slice.finishSolids = true;
         slice.isBridgeLayer = true;
         const polys = expand ? POLY.expand(slice.bridges, expand) : slice.bridges;
-        projectSolid({ slice, polys, count, up: true, first: true });
+        projectSolid({ slice, polys, count, up: true, first: true, rest: shellsOf(polys, width, slice.z) });
     }
+}
+
+// what of a surface carries into the shells of the layers above / below: like
+// Orca, strips narrower than two line widths (slivers along sloped or twisted
+// walls) stay on their own layer
+function shellsOf(polys, width, z) {
+    if (!width) return polys;
+    return POLY.offset(POLY.offset(polys, -width, { z }) || [], width, { z }) || [];
 }

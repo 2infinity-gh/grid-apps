@@ -1284,7 +1284,7 @@ function slicePrintPath(print, slice, startPoint, offset, output, opt = {}) {
     // (not when the top / bridge speed is set: then that speed applies)
     // bridge lines get their own speed per line (below), not the whole layer
     const lineBridges = !firstLayer && !opt.speed && slice.bridges?.length > 0;
-    if (slice.index > 0 && ((slice.isBridgeLayer && !(featureSpeeds && outputSpeedBridge && lineBridges)) ||
+    if (slice.index > 0 && ((slice.isBridgeLayer && !(featureSpeeds && outputSpeedBridge)) ||
         (slice.isFlatsLayer && !slice.isBridgeLayer && !(featureSpeeds && outputSpeedTop)))) {
         fillSpeed /= 2;
         printSpeed /= 2;

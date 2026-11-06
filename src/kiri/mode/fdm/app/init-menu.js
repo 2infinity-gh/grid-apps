@@ -111,6 +111,7 @@ export function menu() {
     sliceFillAngle:      newInput(LANG.fi_angl_s, {title:LANG.fi_angl_l, convert:toFloat}),
     sliceFillGrow:       newInput(LANG.fi_grow_s, {title:LANG.fi_grow_l, convert:toFloat}),
     sliceSolidMinArea:   newInput(LANG.ad_msol_s, {title:LANG.ad_msol_l, convert:toFloat}),
+    sliceSparseMinArea:  newInput("min sparse area", {title:["sparse infill areas smaller (or narrower)","than this print solid, in mm²","0 = off"], convert:toFloat, bound:bound(0,1000)}),
     sliceSolidMinThick:  newInput(LANG.ad_mthk_s, {title:LANG.ad_mthk_l, convert:toFloat}),
     _____:               newGroup(LANG.fi_menu, $('fdm-fill'), { modes:FDM, driven, hideable, separator, group:"fdm-fill" }),
     sliceFillType:       newSelect(LANG.fi_type, {trigger}, "infill"),

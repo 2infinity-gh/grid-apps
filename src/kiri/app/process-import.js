@@ -126,9 +126,12 @@ const MAP = {
     sparse_infill_speed:          (v, p) => ({ outputSpeedSparse: pct(v) ? pct(v) * (value(p.inner_wall_speed) || 0) : v }),
     bridge_speed:                 v => ({ outputSpeedBridge: v }),
     gap_infill_speed:             v => ({ outputSpeedGap: v }),
+    minimum_sparse_infill_area:   v => ({ sliceSparseMinArea: v }),
     support_speed:                v => ({ outputSpeedSupport: v }),
-    small_perimeter_speed:        (v, p) => ({ outputSpeedSmall: pct(v) ? Math.round(pct(v) * (value(p.outer_wall_speed) || 0)) : v }),
-    small_perimeter_threshold:    v => ({ outputSmallRadius: v > 0 ? v : 6.5 }),
+    // Orca's threshold 0 (its default) switches the small perimeter speed off
+    small_perimeter_speed:        (v, p) => !(value(p.small_perimeter_threshold) > 0) ? { outputSpeedSmall: 0 } :
+        ({ outputSpeedSmall: pct(v) ? Math.round(pct(v) * (value(p.outer_wall_speed) || 0)) : v }),
+    small_perimeter_threshold:    v => v > 0 ? { outputSmallRadius: v } : { outputSpeedSmall: 0 },
     elefant_foot_compensation:    v => ({ firstLayerElephant: v }),
     top_shell_thickness:          v => ({ sliceTopThickness: v }),
     bottom_shell_thickness:       v => ({ sliceBottomThickness: v }),
