@@ -105,6 +105,8 @@ export function menu() {
     separator:           newBlank({ class:"set-sep", driven }),
     sliceShellOrder:     newSelect(LANG.sl_ordr_s, { title:LANG.sl_ordr_l}, "shell"),
     sliceDetectThin:     newSelect(LANG.ad_thin_s, { title: LANG.ad_thin_l, action: thinWallSave }, "thin"),
+    sliceGapFill:        newBoolean(LANG.ad_gapf_s, onBooleanClick, {title:LANG.ad_gapf_l, show:() => ui.sliceDetectThin?.value !== 'adaptive'}),
+    sliceGapFillMin:     newInput(LANG.ad_gapm_s, {title:LANG.ad_gapm_l, convert:toFloat, bound:bound(0,100), show:() => ui.sliceGapFill?.checked && ui.sliceDetectThin?.value !== 'adaptive'}),
     outputAlternating:   newBoolean(LANG.ad_altr_s, onBooleanClick, {title:LANG.ad_altr_l}),
     sliceZInterleave:    newBoolean(LANG.ad_zint_s, onBooleanClick, {title:LANG.ad_zint_l, show:() => zIntShow() }),
     _____:               newGroup(LANG.fs_menu, $('fdm-solid'), { modes:FDM, driven, hideable, separator, group:"fdm-solid" }),

@@ -8,6 +8,7 @@ import { getRangeParameters } from '../core/params.js';
 import { slicer } from '../../../../geo/slicer.js';
 import { Point } from '../../../../geo/point.js';
 import { Slope } from '../../../../geo/slope.js';
+import { centerLines } from '../../../../geo/medial.js';
 
 // tell the slicer what to do in FDM mode
 // with slices (post processing). the post
@@ -112,6 +113,11 @@ function slicerPostProcessor(data, options) {
     for (let top of data.tops) {
         nutops.push(layerProcessTop(z, top, count, wallOuter/2, wallStep, fillOff, {
             offsetRest: wallRest,
+            gapFill: process.sliceGapFill ? {
+                spacing: wallRest,
+                height: wallHeight,
+                minLen: process.sliceGapFillMin || 0
+            } : undefined,
             thinType,
             vaseMode,
             useAssembly
@@ -187,6 +193,7 @@ function offset_default(params) {
     let { z, top, count, top_poly, offset1, offsetN, offsetRest, wasm, last, gaps, thin } = params;
 
     let first;
+    const levels = [];
 
     // standard wall offsetting strategy
     POLY.offset(
@@ -201,6 +208,7 @@ function offset_default(params) {
             call: (polys, onCount) => {
                 first = first || polys;
                 last = polys;
+                levels.push(polys);
                 // mark each poly with depth (offset #) starting at 0
                 for (let p of polys) {
                     p.depth = count - onCount;
@@ -220,7 +228,7 @@ function offset_default(params) {
     );
 
     if (!thin) {
-        return { last, gaps };
+        return { last, gaps, levels };
     }
 
     // basic thin wall testing
@@ -294,7 +302,47 @@ function offset_default(params) {
         }
     }
 
-    return { last, gaps };
+    return { last, gaps, levels };
+}
+
+/**
+ * Orca's gap fill (classic walls): the strips between neighbouring walls,
+ * and inside the innermost wall, too narrow for another wall. Between walls
+ * d-1 and d (centre lines `step` apart) that is what the inside of d-1's
+ * bead leaves uncovered by the outside of d's; inside the last wall the
+ * same against a wall that would follow. Strips under min or over max
+ * (2 x spacing) wide are dropped; the rest become centre lines with their
+ * local width.
+ */
+function gap_fill(levels, steps, z, opt) {
+    const { spacing, height, minLen } = opt;
+    const off = (polys, d) => polys.length ? POLY.offset(polys, d, { z, minArea: 0 }) ?? [] : [];
+    let gaps = [];
+    for (let i = 0; i < levels.length; i++) {
+        const step = steps[Math.min(i, steps.length - 1)];
+        const prev = levels[i];
+        const next = i + 1 < levels.length ? levels[i + 1] : off(prev, -step);
+        const inside = off(prev, -step / 2);
+        if (!inside.length) continue;
+        const cover = off(next, step / 2 + 0.001);
+        gaps.push(...(cover.length ? POLY.diff(inside, cover, z) ?? [] : inside));
+    }
+    if (!gaps.length) return { lines: [], polys: [] };
+    gaps = POLY.union(gaps, 0, true);
+    // collapse (Orca): drop slivers under min, and everything wider than max
+    const min = 0.2 * spacing * (1 - 0.4);
+    const max = 2 * spacing;
+    const opened = off(off(gaps, -min / 2), min / 2);
+    if (!opened.length) return { lines: [], polys: [] };
+    const wide = off(off(gaps, -max / 2), max / 2 + 0.001);
+    const polys = wide.length ? POLY.diff(opened, wide, z) ?? [] : opened;
+    const lines = [];
+    for (const poly of polys) {
+        for (const line of centerLines(poly, { minW: min, maxW: max, minLen: Math.max(minLen || 0, min * 2) })) {
+            lines.push(Array.from(line, (v, i) => i % 3 === 2 ? v : +v.toFixed(4)));
+        }
+    }
+    return { lines, polys };
 }
 
 function thin_type_1(params) {
@@ -849,6 +897,14 @@ export function layerProcessTop(z, top, count, offset1, offsetN, fillOffset, opt
             }
             last = ret.last ?? last;
             gaps = ret.gaps ?? gaps;
+            // Orca's gap fill between and inside the walls (normal walls only)
+            if (opt.gapFill && ret.levels?.length) {
+                const gf = gap_fill(ret.levels, [ offsetN, opt.offsetRest || offsetN ], z, opt.gapFill);
+                if (gf.lines.length) {
+                    top.gap_fill = gf.lines;
+                    gaps = [ ...gaps, ...gf.polys ];
+                }
+            }
         }
     } else {
         // no shells, just infill, is permitted

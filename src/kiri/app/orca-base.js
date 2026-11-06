@@ -10,6 +10,7 @@ export const KOBRA_X_BASE = {
     bottom_shell_layers: "3",
     brim_object_gap: "0.1",
     brim_type: "auto_brim",
+    filter_out_gap_fill: "0",
     brim_width: "5",
     default_acceleration: "6000",
     enable_support: "0",

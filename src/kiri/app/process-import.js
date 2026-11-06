@@ -128,6 +128,8 @@ const MAP = {
     sparse_infill_speed:          (v, p) => ({ outputSpeedSparse: pct(v) ? pct(v) * (value(p.inner_wall_speed) || 0) : v }),
     bridge_speed:                 v => ({ outputSpeedBridge: v }),
     gap_infill_speed:             v => ({ outputSpeedGap: v }),
+    // the classic wall generator always fills the gaps between walls
+    filter_out_gap_fill:          v => ({ sliceGapFill: true, sliceGapFillMin: v }),
     minimum_sparse_infill_area:   v => ({ sliceSparseMinArea: v }),
     support_speed:                v => ({ outputSpeedSupport: v }),
     // Orca's threshold 0 (its default) switches the small perimeter speed off

@@ -1750,6 +1750,43 @@ function slicePrintPath(print, slice, startPoint, offset, output, opt = {}) {
         }
     }
 
+    // Orca's gap fill: centre lines through the strips the walls leave,
+    // each point with its strip width (flat [x, y, width, ...] per line)
+    function outputGap(lines) {
+        if (!lines?.length) return;
+        const base = beadArea(nozzleSize, layerH);
+        const z = slice.z;
+        const todo = lines.slice();
+        while (todo.length) {
+            // the nearest line end next, from either end
+            let best = 0, rev = false, bd = Infinity;
+            todo.forEach((l, i) => {
+                const ds = startPoint ? Math.hypot(l[0] - startPoint.x, l[1] - startPoint.y) : 0;
+                const de = startPoint ? Math.hypot(l[l.length - 3] - startPoint.x, l[l.length - 2] - startPoint.y) : Infinity;
+                if (ds < bd) { bd = ds; best = i; rev = false; }
+                if (de < bd) { bd = de; best = i; rev = true; }
+            });
+            let line = todo.splice(best, 1)[0];
+            if (rev) {
+                const r = [];
+                for (let i = line.length - 3; i >= 0; i -= 3) r.push(line[i], line[i + 1], line[i + 2]);
+                line = r;
+            }
+            const first = newPoint(line[0], line[1], z);
+            if (startPoint && startPoint.distTo2D(first) > thinWall && requiresRetract(startPoint, first)) {
+                retract();
+            }
+            print.addOutput(preout, first, 0, moveSpeed, extruder);
+            for (let i = 3; i < line.length; i += 3) {
+                // the bead lays down height x strip width (Orca's variable width flow)
+                const w = (line[i - 1] + line[i + 2]) / 2;
+                const p = newPoint(line[i], line[i + 1], z);
+                print.addOutput(preout, p, layerH * w / base, gapSpeed, extruder);
+                startPoint = p;
+            }
+        }
+    }
+
     /**
      * output solid infill
      * @param {*} lines
@@ -2079,6 +2116,12 @@ function slicePrintPath(print, slice, startPoint, offset, output, opt = {}) {
             // output thin fill
             print.setType('thin fill');
             outputThin(next.thin_fill);
+
+            // then gap fill (Orca prints it after the walls)
+            if (next.gap_fill?.length) {
+                print.setType('gap infill');
+                outputGap(next.gap_fill);
+            }
 
             // then output solid and sparse fill
             // a layer with a top surface prints its solid fill as top surface

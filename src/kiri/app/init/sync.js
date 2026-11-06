@@ -15,6 +15,7 @@ import { shapes } from '../shapes.js';
 import { colorPaint } from '../color-paint.js';
 import { filaments } from '../filaments.js';
 import { processImport } from '../process-import.js';
+import { calibrate } from '../calibrate.js';
 import { plates } from '../plates.js';
 import { toolbar } from '../toolbar.js';
 import { settingsSync } from '../settings-sync.js';
@@ -376,6 +377,8 @@ function setup_keybd_nav() {
     $('filament-profiles').onclick = (ev) => { ev.stopPropagation(); filaments.show() };
     $('set-filaments').onclick = (ev) => { ev.stopPropagation(); filaments.show() };
     $('set-orca-process').onclick = (ev) => { ev.stopPropagation(); processImport.pick() };
+    $('set-calibrate').onclick = (ev) => { ev.stopPropagation(); calibrate.show() };
+    api.calibrate = calibrate;
     $('file-orca-process').onclick = (ev) => { ev.stopPropagation(); processImport.pick() };
     for (let type of shapes.types) {
         $(`shape-${type}`).onclick = (ev) => { ev.stopPropagation(); shapes.add(type) };

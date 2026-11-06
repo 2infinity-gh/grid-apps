@@ -197,6 +197,12 @@ export function fdm_export(print, online, ondone, ondebug) {
             bed_temp: params.outputBedTemp, // range
         });
         applyFilament(layer);
+        // calibration towers: a temperature per height band
+        if (params.outputCalibTemp > 0) {
+            nozzleTemp = params.outputCalibTemp;
+            subst.temp = subst.nozzle_temp = nozzleTemp;
+        }
+        layerPA = params.outputCalibPA;
     }
 
     // per-feature acceleration, written like OrcaSlicer does for Klipper
@@ -225,7 +231,9 @@ export function fdm_export(print, online, ondone, ondebug) {
     // pressure advance: the slot's fixed value at each filament change and,
     // with an adaptive model (Orca / ACN), a new value at the start of every
     // feature and island from its flow (mm³/s) and acceleration
-    let lastPA;
+    let lastPA, layerPA;
+    // calibration (max flow test) runs past the filament's max volumetric speed
+    const mvsOf = t => process.outputIgnoreFilamentMvs ? 0 : filamentFor(t)?.mvs;
     const paModels = {};
     const paModelFor = t => {
         if (!(t in paModels)) paModels[t] = paModel(filamentFor(t)?.paModel);
@@ -245,7 +253,7 @@ export function fdm_export(print, online, ondone, ondebug) {
             if (!o.point || !(o.emit > 0)) break;
             if (j > from && o.type !== undefined && o.type !== feature) break;
             const mm3 = mm3OfEmit(o.emit);
-            const mvs = filamentFor(tool)?.mvs;
+            const mvs = mvsOf(tool);
             flow = Math.max(flow, Math.min((o.speed || process.outputFeedrate) * mm3, mvs || Infinity));
             if (o.retract) break;
         }
@@ -667,6 +675,7 @@ export function fdm_export(print, online, ondone, ondebug) {
         if (path.layer >= 0) {
             updateParams(path.layer, path.params);
         }
+        if (layerPA >= 0) setPA(layerPA);
 
         emitPerMM = extrudePerMM(
             lineWidth || extruder.extNozzle,
@@ -778,7 +787,7 @@ export function fdm_export(print, online, ondone, ondebug) {
             speedMMM = (speed || process.outputFeedrate) * 60; // range
             // cap extrusion speed to the filament's max volumetric speed, on the
             // volume this line really extrudes (bead width and flow included, like Orca)
-            const mvs = emit > 0 && filamentFor(tool)?.mvs;
+            const mvs = emit > 0 && mvsOf(tool);
             if (mvs) {
                 const mm3 = emitPerMM * emit * Math.PI * util.sqr(extruder.extFilament / 2);
                 speedMMM = Math.min(speedMMM, mvs / mm3 * 60);
@@ -845,7 +854,7 @@ export function fdm_export(print, online, ondone, ondebug) {
                 lastAccel = undefined;
                 if (extShared && filamentFor(tool)?.pa >= 0) {
                     lastPA = paFeature = undefined;
-                    setPA(filamentFor(tool).pa);
+                    setPA(layerPA >= 0 ? layerPA : filamentFor(tool).pa);
                 }
                 if (extShared) {
                     // single nozzle fed by a filament changer (e.g. Anycubic ACE):
@@ -869,7 +878,8 @@ export function fdm_export(print, online, ondone, ondebug) {
             setAccel(type, emit, speed, path);
 
             // adaptive PA at the first extrusion of a feature or island
-            const model = emit > 0 && extShared && paModelFor(tool);
+            // a PA tower sets PA per layer (below); no adaptive PA then
+            const model = emit > 0 && extShared && !(layerPA >= 0) && paModelFor(tool);
             if (model && (!laste || (type !== undefined && type !== paFeature))) {
                 const mm3OfEmit = e => emitPerMM * e * Math.PI * util.sqr(extruder.extFilament / 2);
                 const pa = model(runFlow(path, pidx, mm3OfEmit), accelFor(feature, emit, path) || 0);

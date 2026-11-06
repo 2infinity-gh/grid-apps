@@ -1264,6 +1264,15 @@ function layerRender(slice, params, opt = {}) {
             .setLayer("thin fill", Color.thin)
             .addLines(top.thin_fill, vopt({ offset, height }, ctx));
 
+        if (top.gap_fill?.length) output
+            .setLayer("gap fill", Color.thin)
+            .addLines(top.gap_fill.map(l => {
+                const segs = [];
+                for (let i = 3; i < l.length; i += 3) segs.push(
+                    newPoint(l[i - 3], l[i - 2], slice.z), newPoint(l[i], l[i + 1], slice.z));
+                return segs;
+            }).flat(), vopt({ offset, height }, ctx));
+
         if (top.gaps?.length && devel) output
             .setLayer("gaps", Color.gaps)
             .addPolys(top.gaps, vopt({ offset, height, thin: true }, ctx));

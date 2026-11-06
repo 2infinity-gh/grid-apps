@@ -152,6 +152,7 @@ class Slice {
                 return null;
             }
             top.thin_fill = data.thin_fill?.map(p => newPoint(p.x,p.y,p.z));
+            top.gap_fill = data.gap_fill;
             top.thin_wall = data.thin_wall;
             top.thin_sort = data.thin_sort;
             top.fill_lines = data.fill_lines;

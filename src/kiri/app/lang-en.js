@@ -437,6 +437,10 @@ self.lang['en-us'] = {
     sl_shel_l:      ["number of perimeter","walls to generate"],
     ad_thin_s:      "thin walls",
     ad_thin_l:      ["walls in thin parts and gaps between them","basic: fill gaps between walls","adaptive: variable width walls (like Orca's Arachne),","experimental: very slow on detailed models"],
+    ad_gapf_s:      "gap fill",
+    ad_gapf_l:      ["fill strips between and inside the walls","that are too narrow for another wall","with lines of varying width (Orca's gap infill)"],
+    ad_gapm_s:      "gap fill min",
+    ad_gapm_l:      ["leave out gap fill lines shorter than this","in millimeters (Orca: filter out tiny gaps)","0 = keep all"],
 
     // FDM SHELLS
     sl_line_s:      "line width",
