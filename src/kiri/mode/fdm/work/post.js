@@ -115,6 +115,9 @@ function slicerPostProcessor(data, options) {
             offsetRest: wallRest,
             gapFill: process.sliceGapFill ? {
                 spacing: wallRest,
+                // Orca: min spacing = spacing x (1 - INSET_OVERLAP_TOLERANCE 0.4)
+                minSpacing: wallRest * 0.6,
+                minWidth: Math.min(wallOuter, wallInner),
                 height: wallHeight,
                 minLen: process.sliceGapFillMin || 0
             } : undefined,
@@ -194,6 +197,39 @@ function offset_default(params) {
 
     let first;
     const levels = [];
+
+    // mark each poly with depth (offset #) starting at 0
+    const mark = (polys, depth) => {
+        for (let p of polys) {
+            p.depth = depth;
+            if (p.fill_off) p.fill_off.forEach(pi => pi.depth = -depth);
+            if (p.inner) for (let pi of p.inner) pi.depth = p.depth;
+        }
+    };
+
+    // Orca's classic walls: every inner wall is an opening of the one
+    // outside it, in by the spacing plus half the min spacing and back out
+    // by half the min spacing; it leaves out walls where they would crowd
+    // (gap fill takes those strips) and rounds tight corners
+    if (params.minSpacing > 0) {
+        const ms = params.minSpacing;
+        const steps = [ offsetN, offsetRest || offsetN ];
+        let cur = POLY.offset(top_poly, -offset1, { z, wasm }) ?? [];
+        for (let k = 0; k < count && cur.length; k++) {
+            if (k > 0) {
+                const d = steps[Math.min(k - 1, 1)];
+                const shrunk = POLY.offset(cur, -(d + ms / 2), { z, wasm }) ?? [];
+                cur = shrunk.length ? POLY.offset(shrunk, ms / 2, { z, wasm }) ?? [] : [];
+                if (!cur.length) break;
+            }
+            mark(cur, k);
+            first = first || cur;
+            last = cur;
+            levels.push(cur);
+            top.shells.push(...cur);
+        }
+        if (!thin) return { last, gaps, levels };
+    } else
 
     // standard wall offsetting strategy
     POLY.offset(
@@ -316,12 +352,15 @@ function offset_default(params) {
  */
 function gap_fill(levels, steps, z, opt) {
     const { spacing, height, minLen } = opt;
-    const off = (polys, d) => polys.length ? POLY.offset(polys, d, { z, minArea: 0 }) ?? [] : [];
+    // Orca offsets with a miter limit of 3 (Kiri 2): tips reach further in
+    const off = (polys, d) => polys.length ? POLY.offset(polys, d, { z, minArea: 0, miter: 3 }) ?? [] : [];
     let gaps = [];
     for (let i = 0; i < levels.length; i++) {
         const step = steps[Math.min(i, steps.length - 1)];
         const prev = levels[i];
-        const next = i + 1 < levels.length ? levels[i + 1] : off(prev, -step);
+        const ms = opt.minSpacing || 0;
+        const next = i + 1 < levels.length ? levels[i + 1] :
+            ms ? off(off(prev, -(step + ms / 2)), ms / 2) : off(prev, -step);
         const inside = off(prev, -step / 2);
         if (!inside.length) continue;
         const cover = off(next, step / 2 + 0.001);
@@ -330,7 +369,7 @@ function gap_fill(levels, steps, z, opt) {
     if (!gaps.length) return { lines: [], polys: [] };
     gaps = POLY.union(gaps, 0, true);
     // collapse (Orca): drop slivers under min, and everything wider than max
-    const min = 0.2 * spacing * (1 - 0.4);
+    const min = 0.2 * (opt.minWidth || spacing) * (1 - 0.4);
     const max = 2 * spacing;
     const opened = off(off(gaps, -min / 2), min / 2);
     if (!opened.length) return { lines: [], polys: [] };
@@ -891,6 +930,7 @@ export function layerProcessTop(z, top, count, offset1, offsetN, fillOffset, opt
                     ret = offset_default({
                         z, top, count, top_poly, offset1, offsetN, wasm,
                         offsetRest: opt.offsetRest,
+                        minSpacing: opt.gapFill?.minSpacing,
                         thin: ttype === 'basic'
                     });
                     break;
