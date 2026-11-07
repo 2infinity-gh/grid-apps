@@ -2698,12 +2698,12 @@ details[open] summary::after {
     position: relative;
 }
 .slideshow #panel-left::after {
-    content: 'MENU';
+    content: 'SETTINGS';
     position: absolute;
     left: 0;
-    top: 0;
+    top: 50%;
+    transform: translateY(-50%);
     width: 20px;
-    padding-top: 12px;
     writing-mode: vertical-rl;
     text-align: center;
     letter-spacing: 3px;
@@ -2713,4 +2713,12 @@ details[open] summary::after {
 }
 .slideshow #panel-left:hover::after {
     display: none;
+}
+
+/* the settings panel keeps one width, whatever its content */
+#panel-slide {
+    width: 260px;
+    min-width: 260px;
+    max-width: 260px;
+    box-sizing: border-box;
 }

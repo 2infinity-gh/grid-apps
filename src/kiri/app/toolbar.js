@@ -359,7 +359,7 @@ function layout() {
           padding: '4px 4px calc(4px + env(safe-area-inset-bottom))', background: '#fff' } :
         { right: 'auto', transform: 'none', maxWidth: 'none', overflowX: 'visible', justifyContent: 'flex-start',
           borderRadius: '8px', border: '1px solid #ccc', padding: '3px', background: 'rgba(255,255,255,.92)',
-          ...(pos.bar ? placed(bar, pos.bar) : { top: '48px', bottom: 'auto', left: '220px' }) });
+          ...(pos.bar ? placed(bar, pos.bar) : { top: '48px', bottom: 'auto', left: '270px' }) });
     const grip = bar.querySelector('.tool-grip');
     if (grip) grip.style.display = narrow ? 'none' : 'inline-flex';
     for (const c of bar.children) if (c.tagName === 'BUTTON') c.style.flexShrink = '0';
@@ -379,14 +379,14 @@ function layout() {
     Object.assign(panel.style, { padding: narrow ? '8px 8px' : '10px 12px' });
     Object.assign(panel.style, pos.panel ? placed(panel, pos.panel) : narrow ?
         { top: 'auto', bottom: `${footer + 8}px`, left: '8px' } :
-        { top: '62px', bottom: 'auto', left: '264px' });
+        { top: '62px', bottom: 'auto', left: '314px' });
 }
 
 export function initToolbar() {
-    bar = el('div', 'position:fixed;top:44px;left:222px;z-index:20;display:flex;flex-direction:row;gap:4px;' +
+    bar = el('div', 'position:fixed;top:44px;left:272px;z-index:20;display:flex;flex-direction:row;gap:4px;' +
         'background:rgba(255,255,255,.92);border:1px solid #ccc;border-radius:8px;padding:3px');
     bar.id = 'tool-bar';
-    panel = el('div', 'position:fixed;top:62px;left:264px;z-index:20;display:none;box-sizing:border-box;width:300px;' +
+    panel = el('div', 'position:fixed;top:62px;left:314px;z-index:20;display:none;box-sizing:border-box;width:300px;' +
         'background:rgba(255,255,255,.97);border:1px solid #ccc;border-radius:8px;padding:10px 12px;font:12px sans-serif;color:#222;box-shadow:0 4px 14px rgba(0,0,0,.15)');
     panel.id = 'tool-panel';
     panel.onclick = ev => ev.stopPropagation();
