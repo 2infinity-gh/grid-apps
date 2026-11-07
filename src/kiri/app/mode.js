@@ -55,26 +55,15 @@ function switchMode(mode) {
  * @param {function} [then] - Optional callback after mode set complete
  */
 function setMode(mode, lock, then) {
-    if (!MODES[mode]) {
-        console.log("invalid mode: "+mode);
-        mode = 'FDM';
-    }
+    // Korca is FDM only
+    mode = 'FDM';
     const current = settings.get();
     // change mode constants
     current.mode = mode;
     MODE = MODES[mode];
-    document.title = 'Korca | ' + mode;
+    document.title = 'Korca';
     // gcode edit area for any non-SLA mode
     api.uc.setVisible($('gcode-edit'), mode !== 'SLA');
-    // highlight selected mode menu item
-    ["FDM","CAM","SLA","LASER","DRAG","WJET","WEDM"].forEach(sm => {
-        const cl = $(`mode-${sm.toLowerCase()}`).classList;
-        if (sm === mode) {
-            cl.add('selected');
-        } else {
-            cl.remove('selected');
-        }
-    });
     // restore cached device profile for this mode
     if (current.cdev[mode]) {
         current.device = clone(current.cdev[mode]);

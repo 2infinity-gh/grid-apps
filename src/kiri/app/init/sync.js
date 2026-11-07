@@ -30,7 +30,6 @@ const { catalog, client, platform, selection, stats, ui } = api;
 const DOC = self.document;
 const WIN = self.window;
 const LANG = api.language.current;
-const STARTMODE = SETUP.sm && SETUP.sm.length === 1 ? SETUP.sm[0] : null;
 
 // SECOND STAGE INIT AFTER UI RESTORED
 export async function init_sync() {
@@ -203,14 +202,11 @@ function ui_sync() {
     preferences.detailSave();
     api.visuals.update_stats();
 
-    // optional set-and-lock mode (hides mode menu)
-    let SETMODE = SETUP.mode ? SETUP.mode[0] : null;
-
     // optional set-and-lock device (hides device menu)
     let DEVNAME = SETUP.dev ? SETUP.dev[0] : null;
 
-    // setup default mode and enable mode locking, if set
-    api.mode.set(SETMODE || STARTMODE || current.mode, SETMODE);
+    // Korca is FDM only
+    api.mode.set('FDM');
 
     // fill device list
     api.devices.refresh();
@@ -352,13 +348,6 @@ function setup_keybd_nav() {
     ui.modalBox.onclick = (ev) => { ev.stopPropagation() };
 
     $('export-support-a').onclick = (ev) => { ev.stopPropagation(); api.modal.show('don8') };
-    $('mode-fdm').onclick = () => api.mode.set('FDM');
-    $('mode-cam').onclick = () => api.mode.set('CAM');
-    $('mode-sla').onclick = () => api.mode.set('SLA');
-    $('mode-laser').onclick = () => api.mode.set('LASER');
-    $('mode-drag').onclick = () => api.mode.set('DRAG');
-    $('mode-wjet').onclick = () => api.mode.set('WJET');
-    $('mode-wedm').onclick = () => api.mode.set('WEDM');
     $('set-device').onclick = (ev) => { ev.stopPropagation(); api.show.devices() };
     $('set-profs').onclick = (ev) => { ev.stopPropagation(); api.conf.show() };
     $('set-tools').onclick = (ev) => { ev.stopPropagation(); api.show.tools() };
