@@ -368,6 +368,7 @@ function setup_keybd_nav() {
     $('set-orca-process').onclick = (ev) => { ev.stopPropagation(); processImport.pick() };
     $('set-calibrate').onclick = (ev) => { ev.stopPropagation(); calibrate.show() };
     api.calibrate = calibrate;
+    calibrate.watch();
     $('file-orca-process').onclick = (ev) => { ev.stopPropagation(); processImport.pick() };
     for (let type of shapes.types) {
         $(`shape-${type}`).onclick = (ev) => { ev.stopPropagation(); shapes.add(type) };

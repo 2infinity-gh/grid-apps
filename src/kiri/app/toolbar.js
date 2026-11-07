@@ -404,7 +404,19 @@ export function initToolbar() {
     layout();
     window.addEventListener('resize', layout);
     // phones: the objects list starts folded (tap "objects" to open it)
-    if (window.innerWidth < 760) document.querySelector('#panel-right details')?.removeAttribute('open');
+    // objects / ranges slide-out: closed on phones to start, remembered after a tap
+    {
+        const pr = document.getElementById('panel-right'), tab = document.getElementById('pr-tab');
+        let closed = window.innerWidth < 760;
+        try { const v = localStorage.getItem('korca-pr-closed'); if (v !== null) closed = v === '1'; } catch (e) {}
+        const apply = () => pr?.classList.toggle('pr-closed', closed);
+        apply();
+        if (tab) tab.onclick = () => {
+            closed = !closed;
+            apply();
+            try { localStorage.setItem('korca-pr-closed', closed ? '1' : '0'); } catch (e) {}
+        };
+    }
 
     // painting can stop elsewhere (esc): fall back to the move tool
     colorPaint.onChange(state => {

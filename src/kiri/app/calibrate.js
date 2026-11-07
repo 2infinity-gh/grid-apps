@@ -51,9 +51,56 @@ function box(x, y, z, z0) {
 }
 
 // save as a new process profile, derived from the active one, and select it
+// the profile in use before the calibration print, to go back to once the
+// calibration object is removed (also after a reload)
+const PREV_KEY = 'korca-calib-prev';
+let watching = false, building = 0;
+function watchDelete() {
+    if (watching) return;
+    watching = true;
+    api.event.on('widget.delete', () => setTimeout(endCalibration));
+}
+
+// bed empty while a calibration profile is active: back to the old profile,
+// and drop the calibration one (its ranges would carry over to the next model)
+function endCalibration() {
+    // (making a new calibration print clears the bed first)
+    if (api.widgets.all().length || Date.now() - building < 3000) return;
+    const set = api.conf.get(), mode = set.mode;
+    const name = set.process?.processName || '';
+    if (!name.startsWith('calibration ')) return;
+    let saved;
+    try { saved = JSON.parse(localStorage.getItem(PREV_KEY)); } catch (e) {}
+    const procs = set.sproc[mode];
+    let prev = saved?.name;
+    // an unsaved working copy (e.g. "default"): bring it back as it was
+    // ("default" follows the working copy on every save, so it holds the
+    // calibration settings by now)
+    if (prev && (!procs[prev] || prev === 'default') && saved.proc) procs[prev] = saved.proc;
+    if (!prev || !procs[prev] || prev.startsWith('calibration ')) {
+        prev = Object.keys(procs).find(n => n !== name && !n.startsWith('calibration '));
+    }
+    if (!prev) {
+        // nothing to go back to: at least drop the per-layer overrides
+        set.process.ranges = [];
+        api.event.emit('range.updates', set.process.ranges);
+        return;
+    }
+    delete procs[name];
+    api.conf.load(null, prev, true);
+    api.conf.save();
+    api.devices.refresh?.();
+    try { localStorage.removeItem(PREV_KEY); } catch (e) {}
+}
+
 function useProfile(name, change) {
     const set = api.conf.get();
     const mode = set.mode;
+    const cur = set.process?.processName;
+    if (cur && !cur.startsWith('calibration ')) {
+        try { localStorage.setItem(PREV_KEY, JSON.stringify({ name: cur, proc: set.process })); } catch (e) {}
+    }
+    watchDelete();
     const proc = structuredClone(set.process);
     change(proc);
     proc.processName = name;
@@ -64,6 +111,7 @@ function useProfile(name, change) {
 }
 
 function startFresh() {
+    building = Date.now();
     if (api.widgets.all().length && !confirm('remove the objects on the bed for the calibration print?')) return false;
     api.platform.clear();
     return true;
@@ -213,6 +261,7 @@ const TESTS = {
 };
 
 export function showCalibrate() {
+    watchDelete();
     document.getElementById('calibrate-dialog')?.remove();
     const el = (tag, style, text) => {
         const e = document.createElement(tag);
@@ -284,4 +333,4 @@ export function showCalibrate() {
     document.body.appendChild(wrap);
 }
 
-export const calibrate = { show: showCalibrate, maxFlow, paTower, tempTower };
+export const calibrate = { show: showCalibrate, watch: watchDelete, maxFlow, paTower, tempTower };

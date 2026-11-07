@@ -2636,3 +2636,81 @@ details[open] summary::after {
         top: 80px;
     }
 }
+
+/* objects / ranges: a slide-out on the right edge, its own scroll area */
+#panel-right {
+    align-items: flex-start;
+    overflow: visible;
+    max-height: 100%;
+}
+#pr-tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 3px;
+    background-color: var(--menubar-back);
+    border: 1px solid var(--border-gray);
+    border-right: 0;
+    border-radius: 6px 0 0 6px;
+    cursor: pointer;
+    user-select: none;
+    font-size: smaller;
+    color: var(--text, #333);
+}
+#pr-tab span {
+    writing-mode: vertical-rl;
+}
+#pr-tab:hover {
+    background-color: var(--blue-4);
+}
+#pr-body {
+    gap: 3px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+    max-height: calc(100vh - 60px);
+    background-color: var(--work-area);
+}
+#panel-right.pr-closed #pr-body {
+    display: none;
+}
+#panel-right.pr-closed #pr-tab i {
+    transform: rotate(180deg);
+}
+@media (max-width: 759px) {
+    #panel-right {
+        max-width: 55vw;
+    }
+    /* below the plate bar, above the floating tool bar */
+    #pr-body {
+        max-height: calc(100dvh - 45px - 74px - 120px);
+    }
+}
+
+/* the left settings slide-out opens over the floating tool bar, plate bar
+   and view tabs (z-index 20) */
+#mid {
+    z-index: 25;
+}
+/* collapsed: "MENU" down the visible band; gone while the panel is out */
+.slideshow #panel-left {
+    position: relative;
+}
+.slideshow #panel-left::after {
+    content: 'MENU';
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 20px;
+    padding-top: 12px;
+    writing-mode: vertical-rl;
+    text-align: center;
+    letter-spacing: 3px;
+    font: bold 11px sans-serif;
+    color: #333;
+    pointer-events: none;
+}
+.slideshow #panel-left:hover::after {
+    display: none;
+}

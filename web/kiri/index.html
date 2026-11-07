@@ -131,7 +131,9 @@
                 <div id="speeds"><div id="speedbar" class="f-col a-stretch j-center" lkt="sb_info"></div></div>
             </div>
             <!-- vertical separation between workspace and right tray -->
-            <div id="panel-right" class="f-col j-start settings">
+            <div id="panel-right" class="f-row j-start settings">
+                <div id="pr-tab" title="show / hide objects and ranges"><i class="fas fa-chevron-right"></i><span>objects</span></div>
+                <div id="pr-body" class="f-col">
                 <div class="set2-group f-col">
                     <details open>
                         <summary class="set-header"><a>objects</a></summary>
@@ -139,8 +141,10 @@
                     </details>
                 </div>
                 <div class="set2-group f-col mode-fdm bottom">
-                    <div class="set-header"><a>ranges</a></div>
-                    <div id="fdm-ranges" class="f-col"></div>
+                    <details open>
+                        <summary class="set-header"><a>ranges</a></summary>
+                        <div id="fdm-ranges" class="f-col"></div>
+                    </details>
                 </div>
                 <div class="set2-group f-col mode-cam bottom">
                     <details open>
@@ -176,6 +180,7 @@
                 </div>
             </div>
         </div>
+            </div>
     </div>
 
     <!-- ThreeJS container -->
