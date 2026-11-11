@@ -34,6 +34,7 @@ const TOOLS = [
 
 // one-shot actions on the selection, after the tools
 const ACTIONS = [
+    { id: 'selectall', icon: 'fa-object-group', title: 'select everything on the plate (ctrl+a)', run: selectAll, free: true },
     { id: 'duplicate', icon: 'fa-clone',     title: 'duplicate (ctrl+d)', run: duplicate },
     { id: 'delete',    icon: 'fa-trash-can', title: 'delete (del)',       run: () => api.platform.delete(api.selection.meshes()) },
 ];
@@ -67,6 +68,13 @@ function duplicate() {
     if (!copies.length) return;
     api.platform.deselect();
     copies.forEach(w => api.platform.select(w, true));
+}
+
+// select every object on the plate
+function selectAll() {
+    if (!api.widgets.all().length) return api.show.alert('nothing on the plate', 2);
+    api.platform.deselect();
+    api.platform.select_all();
 }
 
 function needSelection() {
@@ -330,7 +338,7 @@ function render() {
             `border:1px solid #ccc;background:#f7f7f7;color:${a.id === 'delete' ? '#c62828' : '#333'};cursor:pointer`);
         b.title = a.title;
         icon(b, a.icon);
-        b.onclick = ev => { ev.stopPropagation(); if (needSelection()) a.run(); };
+        b.onclick = ev => { ev.stopPropagation(); if (a.free || needSelection()) a.run(); };
         bar.appendChild(b);
     }
     renderPanel();
