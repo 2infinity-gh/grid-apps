@@ -164,7 +164,8 @@ class InteractionControl {
             if (event && event.target.nodeName === "CANVAS") {
                 if (object && object.object) {
                     if (object.object.widget) {
-                        this.#platform.select(object.object.widget, event.shiftKey, false);
+                        // a tap / click on a grouped object selects the whole group, which is what moves
+                        this.#platform.select(object.object.widget, event.shiftKey, true);
                     }
                 } else {
                     this.#platform.deselect();

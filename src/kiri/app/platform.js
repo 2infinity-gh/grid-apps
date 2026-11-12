@@ -366,6 +366,12 @@ function select(widget, shift, recurse = true) {
 
     // apply select to entire group
     if (recurse && widget && widget.group.length > 1) {
+        if (shift && selection.contains(widget)) {
+            return platform.deselect(widget, true);
+        }
+        if (!shift) {
+            platform.deselect(undefined, false);
+        }
         for (let w of widget.group) {
             select(w, true, false);
         }
@@ -725,10 +731,16 @@ function delete_post() {
  * Highlights widgets on hover. Updates when widgets are added/removed/modified.
  */
 function changed() {
+    // objects that are grouped get the same letter (A, B, ...) in the list
+    const multi = api.widgets.all().map(w => w.group).uniq().filter(g => g.length > 1);
     h.bind($('ws-widgets'), api.widgets.all().map(w => {
         let color;
         let file = w.meta.file || 'no name';
+        let gi = multi.indexOf(w.group);
+        let gtag = gi >= 0 ? String.fromCharCode(65 + gi % 26) : '';
         let fsho = file.length > 25 ? file.slice(0,20) + '..' + file.slice(-2) : file;
+        if (gtag) fsho = `⛓${gtag} ${fsho}`;
+        if (gtag) file = `group ${gtag} (${w.group.length} objects, they move together) · ${file}`;
         return [
             h.div({
                 onmouseenter() {

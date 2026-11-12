@@ -34,7 +34,8 @@ const TOOLS = [
 
 // one-shot actions on the selection, after the tools
 const ACTIONS = [
-    { id: 'selectall', icon: 'fa-object-group', title: 'select everything on the plate (ctrl+a)', run: selectAll, free: true },
+    { id: 'selectall', icon: 'fa-check-double', title: 'select everything on the plate (ctrl+a)', run: selectAll, free: true },
+    { id: 'group',     icon: 'fa-object-group', title: 'group / ungroup the selection', run: toggleGroup },
     { id: 'duplicate', icon: 'fa-clone',     title: 'duplicate (ctrl+d)', run: duplicate },
     { id: 'delete',    icon: 'fa-trash-can', title: 'delete (del)',       run: () => api.platform.delete(api.selection.meshes()) },
 ];
@@ -75,6 +76,28 @@ function selectAll() {
     if (!api.widgets.all().length) return api.show.alert('nothing on the plate', 2);
     api.platform.deselect();
     api.platform.select_all();
+}
+
+// group the selected objects, or split the selected group again
+function toggleGroup() {
+    const state = api.group.state();
+    if (state === 'split') api.group.split();
+    else if (state === 'merge') api.group.merge();
+    else api.show.alert('select two or more objects to group them', 2);
+    groupIcon();
+}
+
+function icon(b, name) { b.appendChild(el('i', 'font-size:15px', '')).className = `fas ${name}`; }
+
+// the group button shows what a tap will do
+let groupBtn;
+function groupIcon() {
+    if (!groupBtn) return;
+    const split = api.group.state() === 'split';
+    groupBtn.title = split ? 'ungroup: split the selected group into separate objects' : 'group the selected objects (they then move together)';
+    groupBtn.innerHTML = '';
+    icon(groupBtn, split ? 'fa-object-ungroup' : 'fa-object-group');
+    groupBtn.style.color = split ? '#b45309' : '#333';
 }
 
 function needSelection() {
@@ -312,7 +335,6 @@ function render() {
     grip.className = 'tool-grip';
     draggable(grip, bar, 'bar');
     bar.appendChild(grip);
-    const icon = (b, name) => { b.appendChild(el('i', 'font-size:15px', '')).className = `fas ${name}`; };
     for (const t of TOOLS) {
         const active = t.id === tool;
         const b = el('button', `display:inline-flex;align-items:center;justify-content:center;width:34px;height:30px;border-radius:6px;` +
@@ -339,8 +361,10 @@ function render() {
         b.title = a.title;
         icon(b, a.icon);
         b.onclick = ev => { ev.stopPropagation(); if (a.free || needSelection()) a.run(); };
+        if (a.id === 'group') groupBtn = b;
         bar.appendChild(b);
     }
+    groupIcon();
     renderPanel();
     layout();
 }
@@ -438,6 +462,10 @@ export function initToolbar() {
     // keep the move panel's selection and position current
     for (const ev of [ 'widget.select', 'widget.deselect', 'selection.move', 'widget.delete' ]) {
         api.event.on(ev, () => { if (tool === 'move' && movePanel) render(); });
+    }
+    // group button follows the selection
+    for (const ev of [ 'widget.select', 'widget.deselect', 'widget.delete', 'group.merge', 'group.split' ]) {
+        api.event.on(ev, () => groupIcon());
     }
     // lay flat ends by itself after one click; scale panel may be closed from Kiri
     api.event.on('selection.rotate', () => { if (tool === 'flat') setTool('move'); });
