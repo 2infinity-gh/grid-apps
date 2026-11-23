@@ -65,6 +65,10 @@ export function fdm_export(print, online, ondone, ondebug) {
         belt_add_y = (process.firstLayerYOffset || 0) - (belty || 0),
         oloops = process.outputLoops || 0,
         zhop = process.zHopDistance || 0, // range
+        // slope lift (Orca / ACN): rise along the start of the travel instead of straight up
+        zhopSlope = process.zHopSlope > 0 ? Math.min(process.zHopSlope, 89) : 0,
+        hopPending = false,
+        layerRetract = false,
         lineWidth = process.sliceLineWidth || 0,
         seekMMM = process.outputSeekrate * 60,
         retDist = process.outputRetractDist || 0, // range
@@ -279,6 +283,7 @@ export function fdm_export(print, online, ondone, ondebug) {
         }
         if (fil.retract >= 0) subst.retract_distance = retDist = fil.retract;
         if (fil.retractSpeed > 0) subst.retract_speed = retSpeed = fil.retractSpeed * 60;
+        layerRetract = fil.layerRetract === 1 || fil.layerRetract === true;
     }
 
     let rloops = [];
@@ -552,8 +557,23 @@ export function fdm_export(print, online, ondone, ondebug) {
         } else {
             moveTo({e:-retracted}, retSpeed, `e-retract ${retDist}`);
         }
-        if (zhop) moveTo({z:zpos + zhop}, seekMMM, "z-hop start");
+        if (zhop && zhopSlope) hopPending = true; // lift during the next travel
+        else if (zhop) moveTo({z:zpos + zhop}, seekMMM, "z-hop start");
         time += (retDist / retSpeed) * 60 * 2; // retraction time
+    }
+
+    // travel with a pending slope lift: rise to the hop height over the first
+    // zhop / tan(slope) mm (or the whole travel when it is shorter), like Orca
+    function slopeTravel(x, y) {
+        hopPending = false;
+        const target = zpos + zhop;
+        const dx = x - pos.x, dy = y - pos.y, d = Math.hypot(dx, dy);
+        if (!(target > pos.z) || !(d > 0)) return moveTo({ x, y }, seekMMM);
+        const run = (target - pos.z) / Math.tan(zhopSlope * Math.PI / 180);
+        if (d <= run) return moveTo({ x, y, z: target }, seekMMM, "z-hop slope");
+        const f = run / d;
+        moveTo({ x: pos.x + dx * f, y: pos.y + dy * f, z: target }, seekMMM, "z-hop slope");
+        moveTo({ x, y }, seekMMM);
     }
 
     function unretract() {
@@ -562,6 +582,7 @@ export function fdm_export(print, online, ondone, ondebug) {
         }
         // console.log({engage:zhop});
         // when enabled, resume previous Z
+        hopPending = false;
         if (zhop && pos.z != zpos) moveTo({z:zpos}, seekMMM, "z-hop end");
         // re-engage retracted filament
         if (fwRetract) {
@@ -576,6 +597,7 @@ export function fdm_export(print, online, ondone, ondebug) {
     }
 
     function moveTo(newpos, rate, comment, arc) {
+        const from = { x: pos.x, y: pos.y, z: pos.z };
         let o = arc ? 
             [arc.clockwise ? 'G2' : 'G3'] :
             [!rate && !newpos.e ? 'G0' : 'G1'];
@@ -625,7 +647,11 @@ export function fdm_export(print, online, ondone, ondebug) {
             }
         }
         if (zMoveMax && emit.z) {
-            rate = Math.min(zMoveMax, rate) * 60;
+            const dz = Math.abs(pos.z - from.z);
+            const dxy = isBelt ? 0 : Math.hypot(pos.x - from.x, pos.y - from.y);
+            rate = dxy > 0 && dz > 0
+                ? Math.min(rate, zMoveMax * 60 * Math.hypot(dxy, dz) / dz)
+                : Math.min(zMoveMax, rate) * 60;
         }
         if (rate && rate != pos.f) {
             o.append(" F").append(Math.round(rate));
@@ -659,6 +685,11 @@ export function fdm_export(print, online, ondone, ondebug) {
     allout.forEachPair(function (o1, o2) {
         totaldistance += o1.point.distTo2D(o2.point);
     }, 1);
+
+    // Klipper square corner velocity (Orca's default jerk), once at the start
+    if (process.outputCornerVelocity > 0) {
+        append(`SET_VELOCITY_LIMIT SQUARE_CORNER_VELOCITY=${process.outputCornerVelocity}`);
+    }
 
     // retract before first move
     retract();
@@ -953,6 +984,8 @@ export function fdm_export(print, online, ondone, ondebug) {
             } else {
                 if (scarfZ) {
                     moveTo({x, y, z:z + path.height/2}, speedMMM);
+                } else if (hopPending) {
+                    slopeTravel(x, y);
                 } else {
                     moveTo({x, y}, seekMMM);
                 }
@@ -986,6 +1019,7 @@ export function fdm_export(print, online, ondone, ondebug) {
             lastp = point;
             laste = emit;
         }
+        if (layerRetract && !retracted && lastp) retract(zhop);
         layer++;
         if (cwidget) {
             append(`; end object id: ${objectId(cwidget)}`);

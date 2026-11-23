@@ -53,6 +53,10 @@ const MAP = {
     initial_layer_speed:          v => ({ firstLayerRate: v }),
     initial_layer_infill_speed:   v => ({ firstLayerFillRate: v }),
     z_hop:                        v => ({ zHopDistance: v }),
+    // slope lift rises along the first part of the travel (Orca / ACN default
+    // on the Kobra X); the other lift types go straight up
+    z_hop_types:                  (v, p) => ({ zHopSlope: /slope/i.test(String(v)) ? (value(p.travel_slope) > 0 ? value(p.travel_slope) : 3) : 0 }),
+    default_jerk:                 v => ({ outputCornerVelocity: v > 0 ? v : 0 }),
     // Kiri has one first-layer outline setting: loops at an offset from the
     // part; offset 0 makes it a brim. An Orca brim wins over its skirt.
     skirt_loops:                  (v, p) => hasBrim(p) ? {} : { outputBrimCount: v },

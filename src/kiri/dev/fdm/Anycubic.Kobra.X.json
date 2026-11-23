@@ -122,6 +122,8 @@
             "outputMinSpeed": 10,
             "outputPurgeTower": 100,
             "zHopDistance": 0.4,
+            "zHopSlope": 3,
+            "outputCornerVelocity": 9,
             "sliceLayerStart": "aligned",
             "outputAccel": 6000,
             "outputAccelOuter": 2000,

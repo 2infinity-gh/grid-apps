@@ -409,6 +409,8 @@ export const conf = {
                 sliceTopLayers: 3,
                 sliceZInterleave: false,
                 zHopDistance: 0.2,
+                zHopSlope: 0,
+                outputCornerVelocity: 0,
                 // per-feature accelerations in mm/s² (0 = leave the machine default)
                 outputAccel: 0,
                 outputAccelOuter: 0,

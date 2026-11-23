@@ -66,6 +66,7 @@ function fromOrca(json) {
         mvs: pick('filament_max_volumetric_speed'),
         retract: pick('filament_retraction_length'),
         retractSpeed: pick('filament_retraction_speed'),
+        layerRetract: pick('filament_retract_when_changing_layer'),
         pa,
         paModel
     };
