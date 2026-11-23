@@ -69,6 +69,8 @@ export function fdm_export(print, online, ondone, ondebug) {
         zhopSlope = process.zHopSlope > 0 ? Math.min(process.zHopSlope, 89) : 0,
         hopPending = false,
         layerRetract = false,
+        // printer z offset (Orca z_offset): added to every Z in the output
+        zOffset = isFinite(process.outputZOffset) ? +process.outputZOffset || 0 : 0,
         lineWidth = process.sliceLineWidth || 0,
         seekMMM = process.outputSeekrate * 60,
         retDist = process.outputRetractDist || 0, // range
@@ -626,7 +628,7 @@ export function fdm_export(print, online, ondone, ondebug) {
         }
         if (emit.x) o.append(axis.X).append(epos.x.toFixed(decimals));
         if (emit.y) o.append(axis.Y).append(epos.y.toFixed(decimals));
-        if (emit.z) o.append(axis.Z).append(epos.z.toFixed(decimals));
+        if (emit.z) o.append(axis.Z).append((isBelt ? epos.z : epos.z + zOffset).toFixed(decimals));
         if (arc) {
             let { x, y } = arc.center;
             o.push(' I', x.toFixed(decimals));

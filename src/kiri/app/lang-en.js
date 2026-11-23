@@ -999,6 +999,8 @@ self.lang['en-us'] = {
     ad_spol_l:      ["polygons shorter than this","will have their print speed","scaled down to min speed","in millimeters"],
     ad_zhop_s:      "z hop distance",
     ad_zhop_l:      ["amount to raise z","on retraction moves","in millimeters","0 to disable"],
+    ad_zoff_s:      "z offset",
+    ad_zoff_l:      ["added to every Z move","in millimeters","positive = nozzle higher","(Orca's printer z_offset)"],
     ad_zslp_s:      "z hop slope",
     ad_zslp_l:      ["rise while travelling","at this angle (degrees)","like Orca's slope lift","0 = straight up"],
     ad_jerk_s:      "corner velocity",

@@ -253,6 +253,7 @@ export function menu() {
     sliceCompInner:      newInput(LANG.sl_ofin_s, {title:LANG.sl_ofin_l, convert:toFloat, bound:bound(-10.0,10.0)}),
     sliceCompOuter:      newInput(LANG.sl_ofot_s, {title:LANG.sl_ofot_l, convert:toFloat, bound:bound(-10.0,10.0)}),
     zHopDistance:        newInput(LANG.ad_zhop_s, {title:LANG.ad_zhop_l, convert:toFloat, bound:bound(0,3.0)}),
+    outputZOffset:       newInput(LANG.ad_zoff_s, {title:LANG.ad_zoff_l, convert:toFloat, bound:bound(-2,2)}),
     zHopSlope:           newInput(LANG.ad_zslp_s, {title:LANG.ad_zslp_l, convert:toFloat, bound:bound(0,90)}),
     outputCornerVelocity:newInput(LANG.ad_jerk_s, {title:LANG.ad_jerk_l, convert:toFloat, bound:bound(0,100)}),
     outputLoops:         newInput(LANG.ag_loop_s, {title:LANG.ag_loop_l, convert:toInt,   bound:bound(-1,1000), show:isBelt}),
